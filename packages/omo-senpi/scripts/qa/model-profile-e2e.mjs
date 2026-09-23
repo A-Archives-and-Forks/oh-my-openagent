@@ -4,20 +4,19 @@
 // model through the SESSION-ONLY setter and never persists it.
 //   node model-profile-e2e.mjs [--bundle <pluginDir>] [--scenario <name>]
 // Scenarios (all run by default, each in its own throwaway sandbox):
-//   tier-third-rung  model_profile "capable" + a registry serving only the third rung (kimi-k3):
-//                    kimi-k3 is selected, the applied notice names it and lists the skipped rungs,
-//                    and <agentDir>/settings.json is byte-identical before and after (sha256).
+//   daily-normal-opus / daily-heavy-fable / geeky-normal-sol-fast / geeky-heavy-astra
+//                    each leaf's first rung + thinking level in the applied notice.
+//   daily-normal-kimi / daily-normal-glm  later Daily · Normal rungs.
+//   geeky-normal-copilot-sol  Copilot gpt-6-sol medium (no sol-fast).
+//   unset            empty omo.json applies Daily · Normal (kimi-k3 here).
+//   empty-registry   Daily · Normal against only mock-1: unavailable, session keeps mock-1.
 //   literal-pin      model_profile "anthropic/claude-opus-5": that model id is applied.
-//   unknown-profile  model_profile "nope": the unknown-profile notice appears, no model change.
-//   unset            no model_profile: no profile notice at all, no model change.
-//   cli-model-wins   `--model` (provenance "cli") with an active tier: the CLI model survives.
-//   tier-beats-recommended-models  senpi's own recommended-models builtin first auto-switches to
-//                    gpt-5.6-sol (first-available provenance); the tier still wins with glm-5.3.
-//   deep-work-second-rung  model_profile "deep-work" + only gpt-6-sol served: gpt-6-sol is selected.
-//   deep-work-no-old-sol-tail  model_profile "deep-work" + only gpt-5.6-sol served: the profile ends at
-//                    GPT-6 Sol, so the unavailable notice appears and the session keeps mock-1.
-//   simple-work-removed  model_profile "simple-work": the removed profile gets the unknown-profile
-//                    notice listing capable, deep-work, and the session keeps mock-1.
+//   unknown-profile / capable-removed / deep-work-removed / simple-work-removed
+//                    unknown-profile notice listing the four lane ids.
+//   custom-profile   user model_profiles.night-shift applies its chain.
+//   cli-model-wins   `--model` (provenance "cli") with an active lane: the CLI model survives.
+//   lane-beats-recommended-models  senpi recommended-models first auto-switches to gpt-5.6-sol;
+//                    Daily · Normal still wins with glm-5.3.
 // Isolation: SENPI_CODING_AGENT_DIR + XDG_CONFIG_HOME point at a throwaway sandbox; the real
 // ~/.senpi/agent credential files are digest-compared before/after and MUST stay identical.
 import { spawnSync } from "node:child_process"
@@ -74,12 +73,62 @@ const PROFILE_TYPES = [APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE]
 // first-available session to kimi-k3 / claude-opus-5 / ... whenever one is in the registry, which
 // would mask the profile; the sandbox `settings.json` therefore lists `mock-1` as the recommended
 // model so the builtin stays active but inert, except in the scenario that proves the precedence.
+const KNOWN_LANES = "daily-heavy, daily-normal, geeky-heavy, geeky-normal"
+
 const SCENARIOS = {
-  "tier-third-rung": {
-    omoConfig: { model_profile: "capable" },
+  "daily-normal-opus": {
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1", "claude-opus-5-5"],
+    cliModel: undefined,
+    expect: { model: "claude-opus-5-5", notice: APPLIED_TYPE, thinking: "medium" },
+  },
+  "daily-heavy-fable": {
+    omoConfig: { model_profile: "daily-heavy" },
+    mockModels: ["mock-1", "claude-fable-5-1"],
+    cliModel: undefined,
+    expect: { model: "claude-fable-5-1", notice: APPLIED_TYPE, thinking: "xhigh" },
+  },
+  "geeky-normal-sol-fast": {
+    omoConfig: { model_profile: "geeky-normal" },
+    mockModels: ["mock-1", "gpt-6-sol-fast"],
+    cliModel: undefined,
+    expect: { model: "gpt-6-sol-fast", notice: APPLIED_TYPE, thinking: "medium" },
+  },
+  "geeky-heavy-astra": {
+    omoConfig: { model_profile: "geeky-heavy" },
+    mockModels: ["mock-1", "gpt-6-astra"],
+    cliModel: undefined,
+    expect: { model: "gpt-6-astra", notice: APPLIED_TYPE, thinking: "xhigh" },
+  },
+  "daily-normal-kimi": {
+    omoConfig: { model_profile: "daily-normal" },
     mockModels: ["mock-1", "kimi-k3"],
     cliModel: undefined,
-    expect: { model: "kimi-k3", notice: APPLIED_TYPE },
+    expect: { model: "kimi-k3", notice: APPLIED_TYPE, thinking: "max" },
+  },
+  "daily-normal-glm": {
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1", "glm-5.3"],
+    cliModel: undefined,
+    expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
+  },
+  "geeky-normal-copilot-sol": {
+    omoConfig: { model_profile: "geeky-normal" },
+    mockModels: ["mock-1", "gpt-6-sol"],
+    cliModel: undefined,
+    expect: { model: "gpt-6-sol", notice: APPLIED_TYPE, thinking: "medium" },
+  },
+  unset: {
+    omoConfig: {},
+    mockModels: ["mock-1", "kimi-k3"],
+    cliModel: undefined,
+    expect: { model: "kimi-k3", notice: APPLIED_TYPE, thinking: "max" },
+  },
+  "empty-registry": {
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1"],
+    cliModel: undefined,
+    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
   },
   "literal-pin": {
     omoConfig: { model_profile: "anthropic/claude-opus-5" },
@@ -93,42 +142,59 @@ const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "mock-1", notice: UNKNOWN_TYPE },
   },
-  unset: {
-    omoConfig: {},
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: null },
-  },
-  "cli-model-wins": {
+  "capable-removed": {
     omoConfig: { model_profile: "capable" },
     mockModels: ["mock-1", "kimi-k3"],
-    cliModel: "mock-1",
-    expect: { model: "mock-1", notice: null },
-  },
-  "tier-beats-recommended-models": {
-    omoConfig: { model_profile: "capable" },
-    mockModels: ["mock-1", "glm-5.3", "gpt-5.6-sol"],
     cliModel: undefined,
-    recommendedModels: undefined,
-    expect: { model: "glm-5.3", notice: APPLIED_TYPE },
+    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
   },
-  "deep-work-second-rung": {
+  "deep-work-removed": {
     omoConfig: { model_profile: "deep-work" },
     mockModels: ["mock-1", "gpt-6-sol"],
     cliModel: undefined,
-    expect: { model: "gpt-6-sol", notice: APPLIED_TYPE },
-  },
-  "deep-work-no-old-sol-tail": {
-    omoConfig: { model_profile: "deep-work" },
-    mockModels: ["mock-1", "gpt-5.6-sol"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
+    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
   },
   "simple-work-removed": {
     omoConfig: { model_profile: "simple-work" },
     mockModels: ["mock-1", "gpt-6-luna-fast"],
     cliModel: undefined,
     expect: { model: "mock-1", notice: UNKNOWN_TYPE },
+  },
+  "custom-profile": {
+    omoConfig: {
+      model_profile: "night-shift",
+      model_profiles: { "night-shift": { display_name: "Night shift", models: ["mock-1"] } },
+    },
+    mockModels: ["mock-1", "kimi-k3"],
+    cliModel: undefined,
+    expect: { model: "mock-1", notice: APPLIED_TYPE },
+  },
+  "custom-geeky-reasoning": {
+    omoConfig: {
+      model_profile: "geeky-normal",
+      model_profiles: {
+        "geeky-normal": {
+          display_name: "Office GPT",
+          models: [{ model: "mock-1", reasoning: "high" }],
+        },
+      },
+    },
+    mockModels: ["mock-1", "gpt-6-sol-fast", "gpt-6-sol"],
+    cliModel: undefined,
+    expect: { model: "mock-1", notice: APPLIED_TYPE, thinking: "high" },
+  },
+  "cli-model-wins": {
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1", "kimi-k3"],
+    cliModel: "mock-1",
+    expect: { model: "mock-1", notice: null },
+  },
+  "lane-beats-recommended-models": {
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1", "glm-5.3", "gpt-5.6-sol"],
+    cliModel: undefined,
+    recommendedModels: undefined,
+    expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
   },
 }
 
@@ -256,24 +322,39 @@ function runScenario(name, scenario, args, senpiBin) {
           ? profileNotices.length === 0
           : profileNotices.length === 1 && profileNotices[0].customType === scenario.expect.notice,
     }
-    if (name === "tier-third-rung") {
+    if (scenario.expect.notice === APPLIED_TYPE) {
       const applied = profileNotices[0]
       checks.notice_names_model = applied?.content.includes(`selected omo-mock/${scenario.expect.model}`) === true
-      checks.notice_lists_skipped =
-        applied?.content.includes("skipped: anthropic-subscription/claude-fable-5-1, anthropic-subscription/claude-opus-5-5") === true
-      checks.notice_mentions_retry_chains = applied?.content.includes("retry chains") === true
       checks.applied_details = applied?.details?.model === `omo-mock/${scenario.expect.model}`
+      if (scenario.expect.thinking !== undefined) {
+        checks.notice_names_thinking =
+          applied?.content.includes(`omo-mock/${scenario.expect.model} ${scenario.expect.thinking}`) === true
+        checks.details_thinking = applied?.details?.reasoning === scenario.expect.thinking
+      }
+    }
+    if (name === "daily-normal-kimi") {
+      const applied = profileNotices[0]
+      checks.notice_lists_skipped =
+        applied?.content.includes("skipped: anthropic-subscription/claude-opus-5-5") === true
+      checks.notice_mentions_retry_chains = applied?.content.includes("retry chains") === true
+    }
+    if (name === "unset") {
+      checks.default_lane = profileNotices[0]?.details?.profile === "daily-normal"
+    }
+    if (name === "empty-registry") {
+      checks.unavailable_names_registry = profileNotices[0]?.content.includes("model registry") === true
+      checks.unavailable_does_not_infer_auth = /connected/i.test(profileNotices[0]?.content ?? "") === false
     }
     if (name === "unknown-profile") {
-      const unknown = profileNotices[0]
       checks.notice_lists_known_profiles =
-        unknown?.content.includes('model_profile "nope" is not defined; known profiles: capable, deep-work') === true
+        profileNotices[0]?.content.includes(`model_profile "nope" is not defined; known profiles: ${KNOWN_LANES}`) === true
     }
-    if (name === "simple-work-removed") {
+    if (name === "capable-removed" || name === "deep-work-removed" || name === "simple-work-removed") {
+      const retired = name.replace("-removed", "")
       checks.notice_lists_remaining_profiles =
-        profileNotices[0]?.content.includes('model_profile "simple-work" is not defined; known profiles: capable, deep-work') === true
+        profileNotices[0]?.content.includes(`model_profile "${retired}" is not defined; known profiles: ${KNOWN_LANES}`) === true
     }
-    if (name === "tier-beats-recommended-models") {
+    if (name === "lane-beats-recommended-models") {
       const changes = entries.filter((entry) => entry.type === "model_change").map((entry) => entry.modelId)
       checks.recommended_models_switched_first = changes.indexOf("gpt-5.6-sol") !== -1 && changes.indexOf("gpt-5.6-sol") < changes.lastIndexOf("glm-5.3")
     }

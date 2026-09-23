@@ -9,6 +9,8 @@ export type ModelProfileSummary = {
   readonly id: string
   readonly displayName: string
   readonly source: ModelProfileSource
+  readonly family?: "daily" | "geeky"
+  readonly tier?: "normal" | "heavy"
 }
 
 /** One rung of a profile chain, after builtin entries and user config entries are unified. */
@@ -92,13 +94,28 @@ export function mergeModelProfiles(
   const merged = new Map<string, ModelProfileDefinition>()
   for (const [id, builtin] of Object.entries(BUILTIN_MODEL_PROFILES)) {
     merged.set(id, {
-      profile: { id, displayName: builtin.displayName, source: "builtin" },
+      profile: {
+        id,
+        displayName: builtin.displayName,
+        source: "builtin",
+        family: builtin.family,
+        tier: builtin.tier,
+      },
       models: builtin.models.map(builtinRung),
     })
   }
   for (const [id, entry] of Object.entries(profiles ?? {})) {
+    const replaced = merged.get(id)?.profile
+    const family = entry.family ?? replaced?.family
+    const tier = entry.tier ?? replaced?.tier
     merged.set(id, {
-      profile: { id, displayName: entry.display_name ?? id, source: "user" },
+      profile: {
+        id,
+        displayName: entry.display_name ?? id,
+        source: "user",
+        ...(family !== undefined ? { family } : {}),
+        ...(tier !== undefined ? { tier } : {}),
+      },
       models: (entry.models ?? []).map(userRung),
     })
   }

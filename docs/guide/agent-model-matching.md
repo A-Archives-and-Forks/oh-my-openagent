@@ -1,37 +1,40 @@
 # Agent-Model Matching Guide
 
-> **For agents and users**: the three model profiles that pick the main agent's model, which models carry tuned prompt presets, how curated agents and categories keep their own chains, and how to change any of it without breaking things.
+> **For agents and users**: the four model-profile lanes that pick the main agent's model, which models carry tuned prompt presets, how curated agents and categories keep their own chains, and how to change any of it without breaking things.
 
 ---
 
-## Two profiles pick the main agent's model
+## Four lanes pick the main agent's model
 
-The main agent thinks with your session model. The easiest way to choose it is a **model profile**: a named, ordered chain you pick by intent. At session start omo walks the chain and applies the first model your connected providers serve. Chains live in [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts); every rung lists each provider that serves the model, so a Copilot-only or gateway-only account resolves the same way a direct API key does.
+The main agent thinks with your session model. The easiest way to choose it is a **model profile**: a named, ordered chain you pick by lane (Daily or Geeky, Normal or Heavy). At session start omo walks the chain and applies the first model your connected providers serve. Chains live in [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts); every rung lists each provider that serves the model, so a Copilot-only or gateway-only account resolves the same way a direct API key does.
 
-| Profile | Id | Pick it for | Chain |
+| Lane | Id | Pick it for | Chain |
 | --- | --- | --- | --- |
-| Capable | `capable` | The strongest generalist; the default when you don't want to think about models | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (xhigh)` -> same providers `/claude-opus-5-5 (max)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
-| Deep work | `deep-work` | Hard problems that need maximum reasoning | `chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-6-sol (medium)` |
+| Daily · Normal | `daily-normal` | Gets any task done without fuss. Default when `model_profile` is unset. | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (medium)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
+| Daily · Heavy | `daily-heavy` | Gets any task done, after thinking it over from more sides. | same Claude providers `/claude-fable-5-1 (xhigh)` |
+| Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription/gpt-6-sol-fast (medium)` -> `github-copilot\|opencode/gpt-6-sol (medium)` |
+| Geeky · Heavy | `geeky-heavy` | Works on one task and thinks it over from every side. | `chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (xhigh)` |
 
 Activate one with a single key in `omo.json`:
 
 ```jsonc
-{ "model_profile": "capable" }
+{ "model_profile": "daily-normal" }
 ```
 
-The session prints `OmO Native: model profile "capable" selected anthropic-subscription/claude-fable-5-1; mid-session fallback follows senpi's retry chains`, naming any skipped rungs. A few rules worth knowing:
+The session prints `OmO Native: model profile "daily-normal" (Daily · Normal) selected anthropic-subscription/claude-opus-5-5 medium; mid-session fallback follows senpi's retry chains`, naming any skipped rungs. A few rules worth knowing:
 
 - **Pins win.** Write a literal `provider/model` into the same key (`"model_profile": "anthropic/claude-opus-5-5"`) and that exact model is applied; anything containing `/` is a pin.
 - **Explicit models are never clobbered.** A `--model` flag, a scoped model, a resumed session, and a fork keep their own model; the profile only touches a fresh session.
-- **Unset means untouched.** With no `model_profile`, Senpi's own default resolution runs and nothing changes.
+- **Unset means Daily · Normal.** With no `model_profile`, a fresh session applies `daily-normal`. That apply is session-scoped and is not written back to `omo.json`.
 - **Session-scoped.** The apply never writes `settings.json` or `omo.json`. Mid-session failures follow Senpi's retry chains, not the profile.
+- **Retired ids are unknown.** `capable`, `deep-work`, and `simple-work` are not aliases. A config still naming one of them gets the unknown-profile notice listing the four lane ids.
 - **Your own chains.** `model_profiles.<name>` adds a profile, or replaces a builtin of the same name wholesale (no field merge). Entries take the same shape as a category chain and may reference `models.<catalog>` aliases. Key reference: [omo.json](../reference/omo-json.md#model-profiles-native-harness).
 
 You can still pick with `/model` and switch mid-session; the main agent switches with you and the prompt stays the same.
 
 ### The recommended tier
 
-Two configurations are the ones we recommend and tune against, and the Capable and Deep work profiles lead with them:
+Two configurations are the ones we recommend and tune against, and the Daily and Geeky lanes lead with them:
 
 - **Claude Opus 5.5** (or Claude Fable 5 when you have it). Claude is the reference configuration for the orchestration prompt: long nested todos, delegation tables, many tool calls in a row.
 - **GPT 5.6 Sol**. The GPT-recommended configuration. It gets a model-aware GPT-native prompt built for autonomous, principle-driven work. Over-orchestration on small bounded tasks is a known risk on GPT; give it a goal, not a recipe.

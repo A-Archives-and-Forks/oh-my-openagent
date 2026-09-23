@@ -18,6 +18,17 @@ The model-facing tool text is unchanged, and with `memory.write_notice.enabled: 
 keeps the plain call line and message. `memory-write-render.ts` keeps only the Box framing.
 omo#8733.
 
+## Model profiles: Daily/Geeky × Normal/Heavy lanes, no capable/deep-work alias
+
+`model-profile/builtin-profiles.ts`: the builtin table is `daily-normal`, `daily-heavy`,
+`geeky-normal`, `geeky-heavy`, each with `family`/`tier`/`displayName`/`description`.
+`daily-normal` is opus 5.5 medium -> kimi-k3 max -> glm-5.3 max; `daily-heavy` is fable 5.1
+xhigh; `geeky-normal` is chatgpt-subscription gpt-6-sol-fast medium then Copilot/OpenCode
+gpt-6-sol medium; `geeky-heavy` is gpt-6-astra xhigh. `capable` / `deep-work` are removed with
+no alias map. Unset `model_profile` applies `daily-normal` on a fresh session (session-only).
+Notices include displayName + reasoning; unavailable copy names the session registry rather
+than inferring disconnected auth. omo#8735.
+
 ## Model profiles: Capable then Deep work, Simple work removed, subscription lane first
 
 `model-profile/builtin-profiles.ts`: the builtin table is `capable` then `deep-work`, and

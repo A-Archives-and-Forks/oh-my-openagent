@@ -4,36 +4,48 @@ import { describe, expect, it } from "bun:test"
 
 import { resolveModelProfile } from "./resolve"
 
-const FABLE = "anthropic-subscription/claude-fable-5-1"
-const FABLE_ZEN = "opencode/claude-fable-5-1"
-const FABLE_API = "anthropic-api/claude-fable-5-1"
 const OPUS = "anthropic/claude-opus-5-5"
 const OPUS_SUBSCRIPTION = "anthropic-subscription/claude-opus-5-5"
+const OPUS_ZEN = "opencode/claude-opus-5-5"
+const OPUS_API = "anthropic-api/claude-opus-5-5"
+const FABLE = "anthropic-subscription/claude-fable-5-1"
+const FABLE_ZEN = "opencode/claude-fable-5-1"
 const KIMI = "moonshotai/kimi-k3"
 const FLASH = "deepseek/deepseek-flash"
 const LUNA = "openai/gpt-5.6-luna-fast"
+const SOL_FAST = "chatgpt-subscription/gpt-6-sol-fast"
+const SOL_COPILOT = "github-copilot/gpt-6-sol"
+const ASTRA = "chatgpt-subscription/gpt-6-astra"
+
+const DAILY_NORMAL = {
+  id: "daily-normal",
+  displayName: "Daily · Normal",
+  source: "builtin" as const,
+  family: "daily" as const,
+  tier: "normal" as const,
+}
 
 describe("resolveModelProfile", () => {
   it("picks the first rung the registry can serve and names the skipped ones", () => {
-    const result = resolveModelProfile({ active: "capable", availableModels: [KIMI, FLASH] })
+    const result = resolveModelProfile({ active: "daily-normal", availableModels: [KIMI, FLASH] })
 
     expect(result).toEqual({
       kind: "resolved",
-      profile: { id: "capable", displayName: "Capable", source: "builtin" },
+      profile: DAILY_NORMAL,
       provider: "moonshotai",
       modelId: "kimi-k3",
       reasoning: "max",
-      skipped: [FABLE, OPUS_SUBSCRIPTION],
+      skipped: [OPUS_SUBSCRIPTION],
     })
   })
 
   it("resolves a rung through its second provider when the first is absent", () => {
-    const result = resolveModelProfile({ active: "capable", availableModels: [FABLE_API] })
+    const result = resolveModelProfile({ active: "daily-normal", availableModels: [OPUS_API] })
 
     expect(result).toMatchObject({
       kind: "resolved",
       provider: "anthropic-api",
-      modelId: "claude-fable-5-1",
+      modelId: "claude-opus-5-5",
       skipped: [],
     })
   })
@@ -58,14 +70,14 @@ describe("resolveModelProfile", () => {
 
   it("lets a user entry replace a builtin of the same name wholesale", () => {
     const result = resolveModelProfile({
-      profiles: { capable: { models: [FLASH] } },
-      active: "capable",
-      availableModels: [FABLE, FLASH],
+      profiles: { "daily-normal": { models: [FLASH] } },
+      active: "daily-normal",
+      availableModels: [OPUS_SUBSCRIPTION, FLASH],
     })
 
     expect(result).toEqual({
       kind: "resolved",
-      profile: { id: "capable", displayName: "capable", source: "user" },
+      profile: { id: "daily-normal", displayName: "daily-normal", source: "user", family: "daily", tier: "normal" },
       provider: "deepseek",
       modelId: "deepseek-flash",
       skipped: [],
@@ -74,12 +86,15 @@ describe("resolveModelProfile", () => {
 
   it("reports a label-only override as empty instead of falling back to the builtin chain", () => {
     const result = resolveModelProfile({
-      profiles: { capable: { display_name: "House blend" } },
-      active: "capable",
-      availableModels: [FABLE],
+      profiles: { "daily-normal": { display_name: "House blend" } },
+      active: "daily-normal",
+      availableModels: [OPUS_SUBSCRIPTION],
     })
 
-    expect(result).toEqual({ kind: "empty", profile: { id: "capable", displayName: "House blend", source: "user" } })
+    expect(result).toEqual({
+      kind: "empty",
+      profile: { id: "daily-normal", displayName: "House blend", source: "user", family: "daily", tier: "normal" },
+    })
   })
 
   it("resolves a profile the user added", () => {
@@ -110,12 +125,12 @@ describe("resolveModelProfile", () => {
   })
 
   it("reports an empty registry as unavailable and lists the chain", () => {
-    const result = resolveModelProfile({ active: "capable", availableModels: [] })
+    const result = resolveModelProfile({ active: "daily-normal", availableModels: [] })
 
     expect(result).toEqual({
       kind: "unavailable",
-      profile: { id: "capable", displayName: "Capable", source: "builtin" },
-      chain: [FABLE, OPUS_SUBSCRIPTION, "kimi-coding/kimi-k3", "zai-coding-plan/glm-5.3"],
+      profile: DAILY_NORMAL,
+      chain: [OPUS_SUBSCRIPTION, "kimi-coding/kimi-k3", "zai-coding-plan/glm-5.3"],
     })
   })
 
@@ -129,36 +144,106 @@ describe("resolveModelProfile", () => {
     expect(result).toEqual({
       kind: "unknown",
       name: "nope",
-      known: ["capable", "deep-work", "night-shift"],
-      message: 'model_profile "nope" is not defined; known profiles: capable, deep-work, night-shift',
+      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal", "night-shift"],
+      message: 'model_profile "nope" is not defined; known profiles: daily-heavy, daily-normal, geeky-heavy, geeky-normal, night-shift',
     })
   })
 
   it("reports a blank value as unknown rather than silently doing nothing", () => {
     const result = resolveModelProfile({ active: "   ", availableModels: [LUNA] })
 
-    expect(result).toMatchObject({ kind: "unknown", name: "", known: ["capable", "deep-work"] })
+    expect(result).toMatchObject({
+      kind: "unknown",
+      name: "",
+      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal"],
+    })
   })
 })
 
 describe("builtin chain routing", () => {
-  it("keeps capable on the Claude subscription when an OpenCode Zen key serves the same model", () => {
-    const result = resolveModelProfile({ active: "capable", availableModels: [FABLE_ZEN, FABLE] })
+  it("keeps daily-heavy on the Claude subscription when an OpenCode Zen key serves the same model", () => {
+    const result = resolveModelProfile({ active: "daily-heavy", availableModels: [FABLE_ZEN, FABLE] })
 
-    expect(result).toMatchObject({ kind: "resolved", provider: "anthropic-subscription", modelId: "claude-fable-5-1", reasoning: "xhigh" })
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "anthropic-subscription",
+      modelId: "claude-fable-5-1",
+      reasoning: "xhigh",
+    })
   })
 
-  it("reports the removed simple-work profile as unknown instead of resolving it", () => {
-    const result = resolveModelProfile({ active: "simple-work", availableModels: ["chatgpt-subscription/gpt-6-luna-fast"] })
+  it("keeps daily-normal on the Claude subscription when Zen also serves Opus", () => {
+    const result = resolveModelProfile({ active: "daily-normal", availableModels: [OPUS_ZEN, OPUS_SUBSCRIPTION] })
 
-    expect(result).toMatchObject({ kind: "unknown", name: "simple-work", known: ["capable", "deep-work"] })
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "anthropic-subscription",
+      modelId: "claude-opus-5-5",
+      reasoning: "medium",
+    })
   })
 
-  it("stops deep-work after GPT-6 Sol instead of falling to GPT-5.6 Sol", () => {
-    const sol = resolveModelProfile({ active: "deep-work", availableModels: ["chatgpt-subscription/gpt-6-sol"] })
-    const onlyOldSol = resolveModelProfile({ active: "deep-work", availableModels: ["chatgpt-subscription/gpt-5.6-sol"] })
+  it("reports the removed capable, deep-work and simple-work ids as unknown", () => {
+    const available = [OPUS_SUBSCRIPTION, ASTRA]
+    for (const name of ["capable", "deep-work", "simple-work"] as const) {
+      const result = resolveModelProfile({ active: name, availableModels: available })
+      expect(result).toMatchObject({
+        kind: "unknown",
+        name,
+        known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal"],
+      })
+    }
+  })
 
-    expect(sol).toMatchObject({ kind: "resolved", modelId: "gpt-6-sol", reasoning: "medium" })
-    expect(onlyOldSol).toMatchObject({ kind: "unavailable" })
+  it("resolves geeky-normal to gpt-6-sol medium when only Copilot Sol is present", () => {
+    const result = resolveModelProfile({ active: "geeky-normal", availableModels: [SOL_COPILOT] })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "github-copilot",
+      modelId: "gpt-6-sol",
+      reasoning: "medium",
+    })
+  })
+
+  it("prefers chatgpt-subscription sol-fast over Copilot sol for geeky-normal", () => {
+    const result = resolveModelProfile({
+      active: "geeky-normal",
+      availableModels: [SOL_COPILOT, SOL_FAST],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "chatgpt-subscription",
+      modelId: "gpt-6-sol-fast",
+      reasoning: "medium",
+    })
+  })
+
+  it("resolves geeky-heavy to astra xhigh", () => {
+    const result = resolveModelProfile({ active: "geeky-heavy", availableModels: [ASTRA, SOL_FAST] })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      modelId: "gpt-6-astra",
+      reasoning: "xhigh",
+    })
+  })
+
+  it("keeps geeky-normal family/tier when a user replaces the chain with an openai model and does not merge builtin rungs", () => {
+    const result = resolveModelProfile({
+      profiles: { "geeky-normal": { models: [{ model: "openai/gpt-6-sol", reasoning: "high" }] } },
+      active: "geeky-normal",
+      availableModels: [SOL_FAST, "openai/gpt-6-sol"],
+    })
+
+    expect(result).toEqual({
+      kind: "resolved",
+      profile: { id: "geeky-normal", displayName: "geeky-normal", source: "user", family: "geeky", tier: "normal" },
+      provider: "openai",
+      modelId: "gpt-6-sol",
+      reasoning: "high",
+      skipped: [],
+    })
   })
 })

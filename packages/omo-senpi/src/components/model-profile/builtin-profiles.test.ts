@@ -2,15 +2,11 @@
 
 import { describe, expect, it } from "bun:test"
 
-import { BUILTIN_MODEL_PROFILES } from "./builtin-profiles"
+import { BUILTIN_MODEL_PROFILES, DEFAULT_MODEL_PROFILE_ID } from "./builtin-profiles"
 import { KNOWN_MODELS } from "../telemetry/model-vocabulary"
 
-// The id order is the order the picker renders, so it is pinned as a literal list.
-const EXPECTED_IDS = ["capable", "deep-work"] as const
+const EXPECTED_IDS = ["daily-normal", "daily-heavy", "geeky-normal", "geeky-heavy"] as const
 
-// The vendors banned from every public omo surface. Their literal spelling is assembled from
-// fragments on purpose: the acceptance gate greps this whole directory for those names, so the
-// guard that keeps them OUT of the table must not put them back IN as test data.
 const BANNED_VENDOR_TOKENS: readonly string[] = [["mini", "max"].join(""), ["gem", "ini"].join("")]
 
 const PROVIDER_VOCABULARY: Readonly<Record<string, readonly string[]>> = KNOWN_MODELS
@@ -26,16 +22,26 @@ function chainOf(profile: string): readonly string[] {
 }
 
 describe("BUILTIN_MODEL_PROFILES", () => {
-  it("ships exactly the two intent profiles in picker order", () => {
+  it("ships exactly the four lane profiles in picker order", () => {
     expect(Object.keys(BUILTIN_MODEL_PROFILES)).toEqual([...EXPECTED_IDS])
   })
 
-  it("labels each profile by intent", () => {
-    expect(BUILTIN_MODEL_PROFILES["capable"]?.displayName).toBe("Capable")
-    expect(BUILTIN_MODEL_PROFILES["deep-work"]?.displayName).toBe("Deep work")
+  it("labels each profile by lane and gives every profile a distinct family/tier pair", () => {
+    expect(BUILTIN_MODEL_PROFILES["daily-normal"]?.displayName).toBe("Daily · Normal")
+    expect(BUILTIN_MODEL_PROFILES["daily-heavy"]?.displayName).toBe("Daily · Heavy")
+    expect(BUILTIN_MODEL_PROFILES["geeky-normal"]?.displayName).toBe("Geeky · Normal")
+    expect(BUILTIN_MODEL_PROFILES["geeky-heavy"]?.displayName).toBe("Geeky · Heavy")
+    const pairs = Object.values(BUILTIN_MODEL_PROFILES).map((profile) => `${profile.family}:${profile.tier}`)
+    expect(pairs).toEqual(["daily:normal", "daily:heavy", "geeky:normal", "geeky:heavy"])
     for (const id of EXPECTED_IDS) {
       expect(BUILTIN_MODEL_PROFILES[id]?.description.length ?? 0).toBeGreaterThan(0)
     }
+  })
+
+  it("uses the daily-normal leaf as the unset-config default id", () => {
+    expect(Object.hasOwn(BUILTIN_MODEL_PROFILES, DEFAULT_MODEL_PROFILE_ID)).toBe(true)
+    expect(BUILTIN_MODEL_PROFILES[DEFAULT_MODEL_PROFILE_ID]?.family).toBe("daily")
+    expect(BUILTIN_MODEL_PROFILES[DEFAULT_MODEL_PROFILE_ID]?.tier).toBe("normal")
   })
 
   it("gives every rung at least one provider and a model id", () => {
@@ -62,17 +68,11 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(offenders).toEqual([])
   })
 
-  it("lists chatgpt-subscription then the openai lane on every GPT rung and openai nowhere else", () => {
-    const gptRungs = rungs().filter((rung) => rung.model.startsWith("gpt-"))
-    expect(gptRungs.length).toBeGreaterThan(0)
-    const misordered = gptRungs
-      .filter((rung) => rung.providers[rung.providers.indexOf("chatgpt-subscription") + 1] !== "openai")
+  it("lists no rung on the openai API lane so chatgpt-subscription is the only OpenAI lane", () => {
+    const apiLaneRungs = rungs()
+      .filter((rung) => rung.providers.includes("openai"))
       .map((rung) => `${rung.profile}: ${rung.providers.join("|")}/${rung.model}`)
-    expect(misordered).toEqual([])
-    const strayApiLane = rungs()
-      .filter((rung) => !rung.model.startsWith("gpt-") && rung.providers.includes("openai"))
-      .map((rung) => `${rung.profile}: ${rung.model}`)
-    expect(strayApiLane).toEqual([])
+    expect(apiLaneRungs).toEqual([])
   })
 
   it("heads every Claude rung with the anthropic-subscription lane", () => {
@@ -81,19 +81,34 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(claudeRungs.filter((rung) => rung.providers[0] !== "anthropic-subscription").map((rung) => `${rung.profile}: ${rung.model}`)).toEqual([])
   })
 
-  it("orders the capable chain fable xhigh -> opus max -> kimi max -> glm max", () => {
-    expect(chainOf("capable")).toEqual([
-      "claude-fable-5-1 xhigh",
-      "claude-opus-5-5 max",
-      "kimi-k3 max",
-      "glm-5.3 max",
+  it("orders daily-normal opus medium then kimi max then glm max", () => {
+    expect(chainOf("daily-normal")).toEqual(["claude-opus-5-5 medium", "kimi-k3 max", "glm-5.3 max"])
+  })
+
+  it("runs daily-heavy as fable xhigh only", () => {
+    expect(BUILTIN_MODEL_PROFILES["daily-heavy"]?.models).toEqual([
+      {
+        providers: ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-fable-5-1",
+        variant: "xhigh",
+      },
     ])
   })
 
-  it("runs deep-work as astra high then gpt-6-sol medium and nothing after it", () => {
-    expect(BUILTIN_MODEL_PROFILES["deep-work"]?.models).toEqual([
-      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+  it("splits geeky-normal so sol-fast stays on chatgpt-subscription and sol is the Copilot/OpenCode rung", () => {
+    expect(BUILTIN_MODEL_PROFILES["geeky-normal"]?.models).toEqual([
+      { providers: ["chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
+      { providers: ["github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+    ])
+  })
+
+  it("runs geeky-heavy as astra xhigh on the GPT subscription lanes", () => {
+    expect(BUILTIN_MODEL_PROFILES["geeky-heavy"]?.models).toEqual([
+      {
+        providers: ["chatgpt-subscription", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "xhigh",
+      },
     ])
   })
 })

@@ -76,12 +76,12 @@ A top-level `models` record maps a short name to the canonical shape `{ model, r
 
 #### Model Profiles
 
-Two more shared base keys, read by the Senpi harness, pick the main session model by intent instead of by model id. They live at the top level, inside `[native]`, or inside a `profiles.<name>` layer, like any other base key.
+Two more shared base keys, read by the Senpi harness, pick the main session model by lane instead of by model id. They live at the top level, inside `[native]`, or inside a `profiles.<name>` layer, like any other base key.
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `model_profiles` | record<string, `{ display_name?, models? }`> | Named ordered model chains. A name matching a builtin (`capable`, `deep-work`) replaces it wholesale; any other name adds one. Entries use the same string or object shape as a category chain and may reference `models.<catalog>` entries. |
-| `model_profile` | string | Which chain starts the session: a profile id such as `capable`, or a literal `provider/model` that pins one exact model. Unset means Senpi's own default resolution runs. |
+| `model_profiles` | record<string, `{ display_name?, family?, tier?, models? }`> | Named ordered model chains. A name matching a builtin (`daily-normal`, `daily-heavy`, `geeky-normal`, `geeky-heavy`) replaces it wholesale; any other name adds one. Entries use the same string or object shape as a category chain and may reference `models.<catalog>` entries. |
+| `model_profile` | string | Which chain starts the session: a lane id such as `daily-normal`, or a literal `provider/model` that pins one exact model. Unset applies Daily · Normal on a fresh session. |
 
 Don't confuse these with `profiles.<name>` above: that key swaps configuration layers via `OMO_PROFILE`, while `model_profile` chooses a model within the loaded configuration. Builtin chains, session-start behavior, and override rules are in the [omo.json reference](./omo-json.md#model-profiles-native-harness).
 
