@@ -37,6 +37,8 @@ Every request to `claude-opus-5-5` on a subscription login was rejected with `40
 
 **`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
 
+**CI update-checker tests no longer depend on sibling test order.** An unnecessary module mock leaked a fixed version into the registry-channel tests, failing all five assertions when the hook tests ran first. The hook now uses only its existing injected stub; runtime update behavior is unchanged. ([#8678](https://github.com/code-yeongyu/oh-my-openagent/issues/8678))
+
 **A reasoning effort of `none` is no longer silently raised to `low` on GPT-6 models that support it.** Every model id containing `gpt-6` shared one capability rule, which was written for GPT-6 Astra and therefore mapped `none` onto `low`. GPT-6 Sol and GPT-6 Luna both document `none` as a supported effort, so anyone who configured the cheapest tier on those models was quietly billed and throttled at `low` instead, with the change recorded as `unsupported-by-model-family`. The Astra rule is now matched on its own id and keeps its documented clamp, while the rest of the GPT-6 family accepts `none`. A per-model capability override could not have fixed this, because family effort aliases are applied before capability metadata.
 
 ## [5.0.0-beta.84] - 2026-09-22

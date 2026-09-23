@@ -1,3 +1,9 @@
+## 2026-09-23 - Update-checker tests no longer poison their sibling's registry results (#8678)
+
+`hook.test.ts` registered a process-global mock of `checker/latest-version` even though its injected `runBackgroundUpdateCheck` already called the local `latestVersionMock` directly. When the hook test loaded first, the checker barrel retained that mocked export and all five registry-channel assertions received `3.0.1`, including the HTTP 502 case.
+
+The redundant module registration is removed; the injected hook stub and every assertion remain. The ordering reproduction uses explicit `./` file arguments in one Bun invocation, since bare file-name filters let discovery choose the opposite order. The hook-first run was captured at 10 pass / 5 fail before the change; both file orders and the complete updater directory are the verification gates.
+
 ## 2026-09-23 - omob installs unpublished engine bundles without resolving their workspaces from npm
 
 The development build packed the current engine and then passed that tarball to `bun install`. Bun resolves declared dependencies even when the tarball bundles them, so an engine source version whose sibling packages are not yet published failed with `No version matching` before the binary build.
