@@ -79,15 +79,15 @@ describe("memory write notice wording", () => {
     expect(memoryWriteNoticeSpec(notice({ affected }), NOW).why).toBe(why)
   })
 
-  test("#given a deletion #when specified #then it reads as forgetting with the lines let go", () => {
+  test("#given a deletion #when specified #then it reads as a relieved let-go naming the cleared lines", () => {
     const spec = memoryWriteNoticeSpec(
       notice({ affected: [{ path: "reference/old.md", insertions: 0, deletions: 22 }] }),
       NOW,
       { command: "delete", file_path: "reference/old.md" },
     )
-    expect(spec.title).toBe("● Forgot · 4th entry today")
+    expect(spec.title).toBe("● Let go · 4th entry today")
     expect(spec.tone).toBe("accent")
-    expect(spec.why).toBe("Let go of reference/old.md (22 lines).")
+    expect(spec.why).toBe("Cleared reference/old.md (22 lines). One less thing to carry.")
   })
 
   test("#given a rename #when specified #then it reads as a move between the two paths", () => {
@@ -126,7 +126,10 @@ describe("memory write notice wording", () => {
       why: "Saved knowledge/deploy.md.",
       extra: [],
     })
-    expect(memoryDegradedNoticeSpec({ command: "delete", file_path: "knowledge/deploy.md" }).title).toBe("● Forgot")
+    expect(memoryDegradedNoticeSpec({ command: "delete", file_path: "knowledge/deploy.md" })).toMatchObject({
+      title: "● Let go",
+      why: "Cleared knowledge/deploy.md. One less thing to carry.",
+    })
     expect(memoryDegradedNoticeSpec().why).toBe("Saved a memory change.")
   })
 })
@@ -146,15 +149,15 @@ describe("memory refusal wording", () => {
     expect(spec).toEqual({ title: "○ Not remembered", tone: "dim", why, expandedLine: message })
   })
 
-  test("#given a refused deletion #when specified #then the title says the memory was not forgotten", () => {
-    expect(memoryFailureNoticeSpec("memory: delete: x", { command: "delete" }).title).toBe("○ Not forgotten")
+  test("#given a refused deletion #when specified #then the title says it couldn't let go", () => {
+    expect(memoryFailureNoticeSpec("memory: delete: x", { command: "delete" }).title).toBe("○ Couldn't let go")
   })
 })
 
 describe("memory pending wording", () => {
   test.each([
     [{ command: "create", file_path: "reference/a.md" }, "◌ Remembering · reference/a.md"],
-    [{ command: "delete", file_path: "reference/a.md" }, "◌ Forgetting · reference/a.md"],
+    [{ command: "delete", file_path: "reference/a.md" }, "◌ Letting go · reference/a.md"],
     [{ command: "rename", old_path: "reference/a.md", new_path: "reference/b.md" }, "◌ Moving · reference/a.md → reference/b.md"],
     [{}, "◌ Remembering"],
   ])("#given %j #when pending #then one friendly line describes the in-flight change", (args, line) => {

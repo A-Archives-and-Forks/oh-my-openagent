@@ -3,7 +3,7 @@
 // The model still receives the plain "Memory <command> committed locally (<sha7>)." string; this
 // module only replaces what the HUMAN sees with the memory notice family from memory-notice-spec.ts
 // (the house buildNoticeBox contract): while the call runs a single "Remembering <path>" line, and
-// once it settles one notice - "Remembered", "Forgot", or a calm "Not remembered" for a refusal.
+// once it settles one notice - "Remembered", "Let go", or a calm "Not remembered" for a refusal.
 //
 // Every field of the payload is optional because gathering is best-effort: a missing field drops
 // its own fragment, and a wholly missing payload degrades to a statless notice. With the write

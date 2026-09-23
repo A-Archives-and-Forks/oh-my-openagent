@@ -8,11 +8,11 @@ renderer, so neither new rows nor rows persisted in older sessions draw. `comple
 no longer calls `ui.notify` for a delivered completion or a drain, which also removes the warning
 rows the Desktop derived from those toasts; health and park alerts keep their notices.
 `memory-notice-spec.ts` (new) is the one vocabulary: a memory tool write is
-`● Remembered · Nth entry today` (`● Forgot · …` for delete, `Moved a to b.` for rename), a
+`● Remembered · Nth entry today` (`● Let go · …` / `Cleared X. One less thing to carry.` for delete, `Moved a to b.` for rename), a
 merged reflection is `● Remembered · on reflection` with the first sentence of the report's
 Summary item and `N files changed · commit abc1234`, the soul notice is
 `● Remembered · about myself`, all in the accent tone. A refusal renders a dim
-`○ Not remembered` / `○ Not forgotten` with a plain sentence and the raw engine text only
+`○ Not remembered` / `○ Couldn't let go` with a plain sentence and the raw engine text only
 expanded; the pending call line is `◌ Remembering · <path>` and disappears when the notice lands.
 The model-facing tool text is unchanged, and with `memory.write_notice.enabled: false` the row
 keeps the plain call line and message. `memory-write-render.ts` keeps only the Box framing.

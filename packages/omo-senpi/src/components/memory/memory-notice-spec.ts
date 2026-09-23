@@ -12,7 +12,7 @@ import type { MemoryWriteNotice } from "./tools"
 import { joinFields } from "./worker/entry-renderers"
 
 export const REMEMBERED_TITLE = "Remembered"
-export const FORGOT_TITLE = "Forgot"
+export const LET_GO_TITLE = "Let go"
 
 /** A consolidation older than this reads as neglect, not cadence. */
 const STALE_CONSOLIDATION_MS = 7 * 24 * 60 * 60 * 1_000
@@ -57,7 +57,7 @@ export function memoryDegradedNoticeSpec(args: MemoryNoticeArgs = {}): NoticeSpe
 export function memoryFailureNoticeSpec(message: string, args: MemoryNoticeArgs = {}): NoticeSpec {
   const raw = normalizeRendererText(message)
   return {
-    title: args.command === "delete" ? "○ Not forgotten" : "○ Not remembered",
+    title: args.command === "delete" ? "○ Couldn't let go" : "○ Not remembered",
     tone: "dim",
     why: friendlyFailure(raw),
     ...(raw.length === 0 ? {} : { expandedLine: raw }),
@@ -65,7 +65,7 @@ export function memoryFailureNoticeSpec(message: string, args: MemoryNoticeArgs 
 }
 
 export function memoryPendingLine(args: MemoryNoticeArgs): string {
-  if (args.command === "delete") return joinFields(["◌ Forgetting", optional(args.file_path)])
+  if (args.command === "delete") return joinFields(["◌ Letting go", optional(args.file_path)])
   if (args.command === "rename") {
     const from = optional(args.old_path)
     const to = optional(args.new_path)
@@ -76,7 +76,7 @@ export function memoryPendingLine(args: MemoryNoticeArgs): string {
 
 /** "Remembered · 4th entry today"; the count drops out when the commit walk failed. */
 function titleLine(notice: MemoryWriteNotice, args: MemoryNoticeArgs): string {
-  const title = args.command === "delete" ? FORGOT_TITLE : REMEMBERED_TITLE
+  const title = args.command === "delete" ? LET_GO_TITLE : REMEMBERED_TITLE
   const entries = notice.timeline.entriesToday
   if (entries === undefined || !Number.isFinite(entries) || entries <= 0) return title
   return joinFields([title, `${ordinal(Math.floor(entries))} entry today`])
@@ -106,9 +106,8 @@ function whyLine(notice: MemoryWriteNotice, args: MemoryNoticeArgs): string {
   const only = affected.length === 1 ? affected[0] : undefined
   if (args.command === "delete") {
     const path = optional(args.file_path) ?? (only === undefined ? undefined : normalizeRendererText(only.path))
-    if (path === undefined) return "Let a memory go."
-    const lines = only?.deletions ?? 0
-    return lines > 0 ? `Let go of ${path} (${lines} line${lines === 1 ? "" : "s"}).` : `Let go of ${path}.`
+    const cleared = path === undefined ? "a memory" : lines(path, only?.deletions ?? 0)
+    return `Cleared ${cleared}. One less thing to carry.`
   }
   if (args.command === "rename" && optional(args.old_path) !== undefined && optional(args.new_path) !== undefined) {
     return `Moved ${optional(args.old_path)} to ${optional(args.new_path)}.`
@@ -122,6 +121,10 @@ function whyLine(notice: MemoryWriteNotice, args: MemoryNoticeArgs): string {
   }
   const paths = affected.map((entry) => normalizeRendererText(entry.path)).join(", ")
   return `Updated ${affected.length} memory file${affected.length === 1 ? "" : "s"} (${paths}).`
+}
+
+function lines(path: string, count: number): string {
+  return count > 0 ? `${path} (${count} line${count === 1 ? "" : "s"})` : path
 }
 
 /** Engine refusals rephrased for a person; unknown messages lose only their `memory: <command>:` prefix. */
