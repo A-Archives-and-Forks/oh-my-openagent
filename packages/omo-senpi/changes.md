@@ -1,3 +1,23 @@
+## Memory changes read as one "Remembered" notice; reflection lifecycle rows are gone
+
+`worker/completion-renderers.ts` registers a renderer for `senpi-memory.reflection-completion`
+only, and it draws only `merged` records. `reflection-launched`, `reflection-summary` and every
+non-merged completion (no changes, failed, timed out, merge conflict, parent dirty, dirty worktree)
+are still appended (the data and their RPC `entry_appended` events are unchanged) but have no
+renderer, so neither new rows nor rows persisted in older sessions draw. `completion-delivery.ts`
+no longer calls `ui.notify` for a delivered completion or a drain, which also removes the warning
+rows the Desktop derived from those toasts; health and park alerts keep their notices.
+`memory-notice-spec.ts` (new) is the one vocabulary: a memory tool write is
+`● Remembered · Nth entry today` (`● Forgot · …` for delete, `Moved a to b.` for rename), a
+merged reflection is `● Remembered · on reflection` with the first sentence of the report's
+Summary item and `N files changed · commit abc1234`, the soul notice is
+`● Remembered · about myself`, all in the accent tone. A refusal renders a dim
+`○ Not remembered` / `○ Not forgotten` with a plain sentence and the raw engine text only
+expanded; the pending call line is `◌ Remembering · <path>` and disappears when the notice lands.
+The model-facing tool text is unchanged, and with `memory.write_notice.enabled: false` the row
+keeps the plain call line and message. `memory-write-render.ts` keeps only the Box framing.
+omo#8733.
+
 ## Model profiles: Capable then Deep work, Simple work removed, subscription lane first
 
 `model-profile/builtin-profiles.ts`: the builtin table is `capable` then `deep-work`, and
