@@ -129,7 +129,7 @@ When the main agent delegates implementation work, it doesn't pick a model name.
 | `artistry` | Unconventional, creative problem-solving | `anthropic/claude-fable-5-1 (max)` | `claude-fable-5-1 (max)` -> `kimi-k3 (max)` -> `claude-opus-5-5 (max)` |
 | `quick` | Trivial tasks: single-file changes, typos | `chatgpt-subscription/gpt-6-luna-fast (low)` | `chatgpt-subscription/gpt-6-luna-fast (low)` -> `deepseek/deepseek-flash (off)` -> `qwen3.6-flash (low)` -> cheaper utility rungs -> `xai/grok-4.20-0309-non-reasoning` -> `claude-haiku-4-5 (off)` |
 | `unspecified-low` | Doesn't fit elsewhere, low effort | `xiaomi/mimo-v2.6-pro (max)` | `xiaomi\|opencode-go/mimo-v2.6-pro (max)` -> `xai\|github-copilot\|opencode-go/grok-4.7 (xhigh)` -> `gpt-5.6-terra (high)` -> `claude-sonnet-5 (low)` -> `qwen3.8-max-preview (max)` -> `deepseek\|opencode-go/deepseek-v4-pro (max)` -> `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
-| `unspecified-high` | Doesn't fit elsewhere, high effort | `anthropic/claude-opus-5-5 (max)` | `claude-opus-5-5 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` -> `kimi-k3 (max)` |
+| `unspecified-high` | Doesn't fit elsewhere, high effort | `anthropic/claude-opus-5-5 (medium)` | `claude-opus-5-5 (medium)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` -> `kimi-k3 (max)` |
 | `writing` | Documentation, prose, technical writing | `anthropic/claude-fable-5-1 (low)` | `claude-fable-5-1 (low)` -> `claude-opus-5-5 (low)` -> `claude-opus-4-6 (max)`; unavailable when none of these is connected, with no fallback to another family |
 
 The `quick` category ships a caller warning: small fast models need an explicit prompt with numbered must-do steps, forbidden deviations, and concrete success criteria. `deep` is one goal plus one deliverable per call; fan out multiple goals as parallel `deep` calls.
@@ -159,7 +159,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
     "deep-high": { "model": "openai/gpt-6-astra", "reasoning": "xhigh" },
     "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
-    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" }
+    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "medium" }
   }
 }
 ```

@@ -132,7 +132,7 @@ describe("GPT builtin defaults and gates", () => {
   })
 
   it("#given unspecified-high #then its default is the Opus 5.5 rung its chain now leads with, not Astra", () => {
-    expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5-5", variant: "max" })
+    expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5-5", variant: "medium" })
   })
 
   it("#given the gates #then ultrabrain opens on either flagship, deep-low on a GPT-6 Sol tier, deep-high on Astra alone, unspecified-high is ungated", () => {
@@ -197,14 +197,14 @@ describe("resolveCategory on GPT registries", () => {
     expect(resolveCategory("unspecified-high", {}, codexAstraRegistry).kind).toBe("model_unavailable")
   })
 
-  it("#given claude-opus-5-5 #when unspecified-high resolves #then it runs Opus 5.5 at max with the generic append", () => {
+  it("#given claude-opus-5-5 #when unspecified-high resolves #then it runs Opus 5.5 at medium with the generic append", () => {
     const result = resolveCategory("unspecified-high", {}, registry([{ provider: "anthropic", id: "claude-opus-5-5" }]))
     expect(result.kind).toBe("resolved")
     if (result.kind !== "resolved") throw new Error("Expected resolved")
     expect(result.spec).toMatchObject({
       provider: "anthropic",
       modelId: "claude-opus-5-5",
-      variant: "max",
+      variant: "medium",
       prompt_append: definition("unspecified-high").promptAppend,
     })
   })
