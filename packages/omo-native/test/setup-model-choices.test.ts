@@ -126,8 +126,8 @@ describe("omo setup model choices", () => {
       const item = sandbox()
       issueUser(item)
 
-      // when
-      const stdout = run(item, ["setup", "--dry-run"])
+      // when: --yes as well, so only the dry run (not a refused prompt) keeps the files unwritten
+      const stdout = run(item, ["setup", "--dry-run", "--yes"])
 
       // then
       expect(existsSync(item.omoConfig)).toBe(false)

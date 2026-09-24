@@ -58,7 +58,7 @@ describe("insertJsoncMember", () => {
     })
 
     test("#when a path segment is not an object #then it throws", () => {
-      expect(() => insertJsoncMember(`{ "a": [1, 2] }`, ["a"], "b", 2)).toThrow("is not an object")
+      expect(() => insertJsoncMember(`{ "a": [1, 2] }`, ["a"], "b", 2)).toThrow(/^a is not an object$/)
     })
 
     test("#when the document is not an object #then it throws", () => {
