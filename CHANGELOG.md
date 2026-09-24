@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.90] - 2026-09-24
+
 ### Changed
 
 **You can see the agent's plan and its progress without asking, and weaker models no longer stop halfway through it.** ([senpi#2121](https://github.com/code-yeongyu/senpi/issues/2121), [#8847](https://github.com/code-yeongyu/oh-my-openagent/issues/8847)) The OmO Native engine moves to senpi 2026.9.24-3. The first work request of a session now opens with a phased todo list, and every todo update names your original request, the task in progress, and the next one. When the plan is created, a phase closes, or the work finishes, the agent writes a short report of what you asked for, what you need to know now, what it is doing, and what comes next. The final message uses that report and says plainly what is done and what is not. If a turn ends with todo items still open and no question for you, the agent gets one reminder to finish them. Models that refuse a forced first tool call with thinking on now continue normally instead of failing the first turn. The first-turn plan and the turn-end reminder can be turned off with the `todo.firstTurnPlan` and `todo.turnEndBackstop` settings.
