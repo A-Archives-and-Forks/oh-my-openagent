@@ -109,7 +109,11 @@ function npmUninstallNote(packageName: string, installCommand: string): string {
   return `If you later run npm uninstall -g ${packageName}, npm also deletes the omo command omo-ai now owns. Run ${installCommand} again afterwards to restore it.`
 }
 
-export function nativeInstallSuccessLine(): string {
+export function nativeInstallSuccessLine(verified: boolean): string {
+  if (!verified) {
+    // `omo setup` would run whatever `omo` PATH resolves, which the verify step just said is not omo-ai.
+    return `OmO Native installed, but omo on your PATH is not omo-ai yet. Apply the fix above, then run ${NATIVE_SETUP_COMMAND}.`
+  }
   return `OmO Native installed. Run ${NATIVE_SETUP_COMMAND} to finish onboarding.`
 }
 

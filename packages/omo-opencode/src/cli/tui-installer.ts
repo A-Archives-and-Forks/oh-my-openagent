@@ -161,7 +161,7 @@ export async function runTuiInstaller(args: InstallArgs, version: string): Promi
       p.outro(color.red("Installation failed."))
       return 1
     }
-    spinner.stop(nativeInstallSuccessLine())
+    spinner.stop(nativeInstallSuccessLine(outcome.verified))
     for (const note of outcome.notes) p.log.info(note)
     for (const warning of outcome.warnings) p.log.warn(warning)
   }

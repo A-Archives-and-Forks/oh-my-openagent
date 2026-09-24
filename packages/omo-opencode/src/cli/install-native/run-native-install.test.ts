@@ -241,7 +241,7 @@ describe("native install messages", () => {
     })
 
     // when
-    const rendered = [...outcome.notes, nativeInstallSuccessLine()]
+    const rendered = [...outcome.notes, nativeInstallSuccessLine(outcome.verified)]
 
     // then
     expect(rendered[0]).toBe(NATIVE_RECOMMENDED_RUNTIME_NOTE)

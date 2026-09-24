@@ -177,7 +177,7 @@ export async function runCliInstaller(args: InstallArgs, version: string): Promi
       for (const line of nativeInstallFailureLines(outcome.failure)) printError(line)
       return 1
     }
-    printSuccess(nativeInstallSuccessLine())
+    printSuccess(nativeInstallSuccessLine(outcome.verified))
     console.log()
   }
 
