@@ -10,7 +10,8 @@ export const GATE_REASON_MAX_CHARS = 160
 /** Bounds for the unavailable notice's stored fields; the renderer re-validates against them. */
 export const UNAVAILABLE_CATEGORY_MAX_CHARS = 128
 export const UNAVAILABLE_PROVIDER_MAX_CHARS = 64
-export const UNAVAILABLE_PROVIDER_MAX_COUNT = 8
+/** The builtin quick chain alone lists twelve unconnected providers; every one must stay nameable. */
+export const UNAVAILABLE_PROVIDER_MAX_COUNT = 16
 
 export interface KibitzerNudgedRecord {
   readonly version: 1

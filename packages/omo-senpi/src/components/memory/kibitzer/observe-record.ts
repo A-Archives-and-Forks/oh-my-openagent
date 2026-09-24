@@ -13,7 +13,7 @@ export const WAKE_MODEL_MAX_CHARS = 128
 const WAKE_PATH_MAX_CHARS = 256
 /** Bounds for the configuration fields of a category-refusal line. */
 const WAKE_PROVIDER_MAX_CHARS = 64
-const WAKE_PROVIDER_MAX_COUNT = 8
+const WAKE_PROVIDER_MAX_COUNT = 16
 
 /** One line of `wakes.ndjson`. Every string is bounded and masked; the whole line is bounded again. */
 export interface KibitzerWakeRecord {

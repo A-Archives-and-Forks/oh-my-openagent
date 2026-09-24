@@ -310,8 +310,10 @@ describe("kibitzer diagnostic streak notice", () => {
 
   test("#given consecutive category-configuration refusals #when observed #then no gate notice fires, exactly one actionable unavailable notice is appended per session, and the diagnostic streak is neither fed nor reset", async () => {
     const f = await fixture()
-    // A real chain lists a dozen providers; the stored notice keeps the first eight, like every other stored field.
-    const chainProviders = ["chatgpt-subscription", "openai", "deepseek", "qwen", "alibaba", "bailian", "opencode-go", "xai", "anthropic", "github-copilot"]
+    // The builtin quick chain's twelve unconnected providers (resolver order) plus a user-extended tail:
+    // all twelve survive, the stored notice keeps the first sixteen, like every other bounded field.
+    const quickChain = ["chatgpt-subscription", "openai", "deepseek", "qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "opencode-go", "xai", "anthropic-subscription", "anthropic", "anthropic-api", "github-copilot"]
+    const chainProviders = [...quickChain, ...Array.from({ length: 6 }, (_, index) => `extra-${index}`)]
     const configuration = { category: "quick", cause: "category_unavailable" as const, missingProviders: chainProviders }
     const refusal = (wake: number): KibitzerWakeOutcome => outcome({
       wake,
@@ -330,7 +332,8 @@ describe("kibitzer diagnostic streak notice", () => {
     expect(f.gates()).toEqual([])
     const notices = f.entries.filter((entry) => entry.customType === "omo-kibitzer:unavailable")
     expect(notices).toHaveLength(1)
-    expect(notices[0]?.data).toEqual({ version: 1, category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 8) })
+    expect((notices[0]?.data as { missingProviders: string[] }).missingProviders).toEqual(expect.arrayContaining(quickChain))
+    expect(notices[0]?.data).toEqual({ version: 1, category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 16) })
 
     // Every refusal is still recorded, marked non-diagnostic, with the configuration named.
     const recorded = await f.wakes(SESSION_ID)
@@ -339,7 +342,7 @@ describe("kibitzer diagnostic streak notice", () => {
       [2, "failed", false],
       [3, "failed", false],
     ])
-    expect(recorded[0]?.configuration).toEqual({ category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 8) })
+    expect(recorded[0]?.configuration).toEqual({ category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 16) })
 
     // A fourth refusal adds no second notice...
     f.observe.onWake(refusal(4), f.context)
