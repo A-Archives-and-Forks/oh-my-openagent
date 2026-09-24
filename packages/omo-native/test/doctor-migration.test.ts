@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { delimiter, dirname, join, relative } from "node:path"
+import { delimiter, dirname, join, parse, relative } from "node:path"
 import { migrationReport } from "../bin/lib/doctor-migration.js"
 import { runDoctor } from "../bin/lib/doctor.js"
 import { updateTarget } from "../bin/lib/package-paths.js"
@@ -327,7 +327,9 @@ describe("omo doctor migration checks", () => {
   })
 
   describe("#given a legacy omo reachable only through a relative PATH entry", () => {
-    test("#then that entry is not scanned", () => {
+    // A relative entry pointing at the temp dir only exists when the checkout and the temp dir share
+    // a root; Windows runners keep them on different drives, where relative() returns an absolute path.
+    test.skipIf(parse(process.cwd()).root.toLowerCase() !== parse(tmpdir()).root.toLowerCase())("#then that entry is not scanned", () => {
       const sandbox = createSandbox()
       installNpmLegacy(sandbox)
       installBunNative(sandbox)
