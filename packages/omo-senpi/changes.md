@@ -47,12 +47,67 @@ is registered). Live proof: `scripts/qa/kibitzer-sidecar-e2e.mjs --scenario cate
 drives the real senpi binary with only `omo-mock` connected and the recall category on its builtin chain:
 3 refusals, 1 unavailable notice naming the chain's providers, 0 gate entries, 0 child turns, lease released. omo#8811.
 
+||||||| 60cfa1a41
+
+## model-profile: GLM rungs pick engine `zai` / `zai-coding-cn` (#8827)
+
+`components/model-profile/builtin-profiles.ts`: `GLM_PROVIDERS` is `zai`, `zai-coding-cn`, `opencode-go` instead of OpenCode's `zai-coding-plan`, so Recommended (ranked providers only) and Daily · Normal select an imported `zai` key for `glm-5.3`. `kimi-for-coding` stays next to engine `kimi-coding` because the senpi-task category chains keep that leftover OpenCode id. `model-vocabulary.ts` adds `zai` / `zai-coding-cn` so shipped rungs still export; `zai-coding-plan` remains for older sessions. New `chain-provider-ids.test.ts` loads the pinned engine `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and asserts every builtin-profile and senpi-task category-chain provider id is an engine id or an allow-listed alias. omo#8824.
+
+||||||| cb5ea3272
+
+||||||| e1693d8b4
+
+||||||| f9843a842
+
+## extension: component info logs are silent unless OMO_DEBUG is set
+
+`src/extension/compose.ts` `defaultLogger.info` no longer writes to stderr unless `OMO_DEBUG` is set. `warn`/`error` unchanged; stdout still unused (#8564). Call sites such as ulw-loop skip and model-profile selection stay as `logger.info`; the model-profile user sentence already goes through `pi.sendMessage`. `compose.test.ts` covers silent-by-default, printed-with-switch, warn-always, nothing on stdout. omo#8819.
+
+||||||| cb5ea3272
+
+||||||| e1693d8b4
+## memory: the system prompt keeps its memory block for the whole session (#8470)
+
+The memory block is compiled once per session at the memory HEAD of its first turn and persisted as an `omo-memory:projection-pin` entry; later memory commits reach the model as a `<memory_notice>` line instead of rewriting the system prompt, so they no longer invalidate the prompt cache. Compaction, `/recompile`, and a vanished pinned commit repin; new and forked sessions pin fresh.
+## 2026-09-24 - onboarding lane 2 stops hand-moving global OpenCode MCP servers into project files
+
+`skills/onboarding/SKILL.md` lane 2 (migration help) now tells the guide that global OpenCode MCP servers and global OpenCode skills are `omo setup`'s job: it imports them into `~/.omo/agent/mcp.json` and `~/.omo/agent/skills/`, consent-gated, converted, and without overwriting an existing name, previewable with `omo setup --dry-run` and applied with `omo setup --yes` once the user accepts, because the guide's shell is not a terminal and plain `omo setup` stops at its consent prompt without importing. The migration-plan sentence splits "which MCP servers move to the project `.mcp.json`" into what setup carries over globally and what is genuinely project-only.
+
+Written because the old wording produced the bug it was meant to prevent: the lane moved a GLOBAL server into the PROJECT `.mcp.json`, and the next session outside that project saw nothing. Implementation detail lives in `packages/omo-native/changes.md`.
+
+||||||| da3ba4f48
+## skills: the hyperplan restart hint names the brand command
+
+`skills/hyperplan/SKILL.md` told the user to "Restart senpi without `--no-omo-task`". On OmO
+Native the command is `omo`. The hint now names `omo` on OmO Native and `senpi` on a plain senpi
+install, matching the `--list-tips` brand-command rule.
+
+## skills: the onboard re-run instruction names the brand command
+
+`skills/onboarding/SKILL.md` still told the user to bring the tour back with `senpi --onboard`.
+On OmO Native that bin is not on PATH (the `--onboard` flag is registered by the omo-senpi
+onboarding component and reached only through the branded launcher). The hint now uses
+`omo --onboard` on OmO Native and `senpi --onboard` on a plain senpi install, matching the
+`--list-tips` brand-command rule. Lane 2 (Migration help) is unchanged.
+
+## skills: the list-tips instruction names the command the running product actually ships
+
+`skills/give-me-tips/SKILL.md`, `skills/onboarding/SKILL.md`, and `skills/AGENTS.md` told the
+agent to run `senpi --list-tips`, but an OmO Native machine (a bun/npm global `omo-ai` install)
+links only the top-level `omo` bin - `@code-yeongyu/senpi` arrives as a dependency, so `senpi`
+is not on PATH and the instructed command failed when first-run onboarding tried to list tips.
+The skills now instruct the brand command of the product that is running: `omo --list-tips`
+under OmO Native (the omo launcher passes unknown flags through to the engine, and the session
+environment carries the `OMO_NATIVE=1` / `OMO_BIN` markers the skill tells the agent to detect),
+`senpi --list-tips` under a plain senpi install, with `"$OMO_BIN" --list-tips` as the fallback
+when `omo` itself is not on PATH (bunx/npx launches).
+
+||||||| 530692bc0
 ## model-profile: Geeky · Normal runs gpt-5.6-sol medium (#8807)
 
 `src/components/model-profile/builtin-profiles.ts`: `geeky-normal` is one rung, `gpt-5.6-sol` at `medium` on `chatgpt-subscription`, `openai`, `github-copilot`, `opencode` (the shared `GPT_PROVIDERS` ranking), replacing `gpt-6-sol-fast` then `gpt-6-sol`. There is no GPT-6 fallback rung, so a registry serving only GPT-6 Sol reports the lane unavailable.
 
 Tests: `builtin-profiles.test.ts` pins the new chain; `resolve.test.ts` covers the Copilot-only, subscription-over-Copilot, API-over-unlisted-provider and GPT-6-only (unavailable) cases; `index.test.ts` applies `github-copilot/gpt-5.6-sol` medium. `scripts/qa/model-profile-e2e-scenarios.mjs`: the geeky-normal scenarios serve `gpt-5.6-sol` (`geeky-normal-api-sol`, `geeky-normal-copilot-sol`, `geeky-normal-sol`), and `geeky-normal-gpt6-only-unavailable` proves the lane does not fall back to GPT-6.
-
 ## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
 
 `skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
@@ -1236,6 +1291,7 @@ so the connection that opens a session drops at once and the host moved the new 
 `set_session_name`, sends `retain_on_disconnect: true`, and merges the entry the host reports in
 `list_sessions` before returning. When QA'ing this surface, run the host from the engine this repo
 pins: `retain_on_disconnect` landed in senpi 2026.9.20, and an older host ignores it in silence.
+
 ## 2026-09-23 — Four-profile provider coverage follows task routing
 
 Geeky profiles keep the #8737 provider ranking: ChatGPT subscription first,

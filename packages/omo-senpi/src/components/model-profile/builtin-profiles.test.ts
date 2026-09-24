@@ -102,6 +102,15 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(misordered).toEqual([])
   })
 
+  it("heads every GLM rung with engine zai then zai-coding-cn", () => {
+    const glmRungs = rungs().filter((rung) => rung.model.startsWith("glm-"))
+    expect(glmRungs.length).toBeGreaterThan(0)
+    const misordered = glmRungs
+      .filter((rung) => rung.providers[0] !== "zai" || rung.providers[1] !== "zai-coding-cn")
+      .map((rung) => `${rung.profile}: ${rung.providers.join("|")}/${rung.model}`)
+    expect(misordered).toEqual([])
+  })
+
   it("heads every Claude rung with the anthropic-subscription lane", () => {
     const claudeRungs = rungs().filter((rung) => rung.model.startsWith("claude-"))
     expect(claudeRungs.length).toBeGreaterThan(0)

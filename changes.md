@@ -13,6 +13,129 @@ restores judging without a restart. The task tool's dead-chain warning gained th
 Full file-level detail in `packages/omo-senpi/changes.md`; `docs/reference/configuration.md` documents the
 notice in the recall section.
 
+||||||| 60cfa1a41
+
+## 2026-09-24 - omo setup carries OpenCode custom providers into the engine's models.json (#8836)
+
+An OpenCode power user's hand-configured `provider.<id>` block (an OpenAI- or Anthropic-compatible endpoint with `baseURL`, `apiKey` and a `models` map) used to vanish on migration: `omo setup` reported the id as `skipped-unmapped` and printed a placeholder `omo.json` template instead. Setup now reads those blocks from the same merged OpenCode config files the MCP/skills import reads, previews each one (`custom provider acme -> https://api.acme.example/v1 (openai-completions, from @ai-sdk/openai-compatible), 2 model(s): acme/acme-large, acme/acme-small; key: from opencode config apiKey`), and on consent writes the provider into `~/.omo/agent/models.json` and its key into `~/.omo/agent/auth.json`, so `acme/acme-large` is selectable in the first session. Existing ids in either file are never overwritten, both files get a timestamped backup, `--dry-run` previews only, and a second run changes nothing. The npm package decides the engine api (`@ai-sdk/openai-compatible` -> `openai-completions`, the default OpenCode itself uses when `npm` is absent; `@ai-sdk/anthropic` -> `anthropic-messages`; `@ai-sdk/openai` -> `openai-responses`); any other package, a provider id omo already serves, a baseURL that is not a fixed URL, and a provider with no usable model are reported by name and skipped. The placeholder template is no longer printed when a custom provider was found, and the credential stage no longer lists that id as `skipped-unmapped`. Details in `packages/omo-native/changes.md`.
+
+||||||| 0009632c6
+
+||||||| 2a04ce61b
+
+||||||| 01a12a538
+
+## 2026-09-24 - native GLM chains pick an imported zai key (#8827)
+
+OmO Native builtin model profiles and senpi-task category chains named OpenCode's `zai-coding-plan` provider, which the pinned engine does not register (engine ids are `zai` and `zai-coding-cn`). After `omo setup` imports that key as `zai` (#8799), Recommended (ranked providers only) and Daily · Normal never selected `glm-5.3` even when `/model` listed `zai/glm-5.3`. Native `GLM_PROVIDERS` and the `unspecified-high` category GLM rung now list `zai`, `zai-coding-cn`, `opencode-go`. `kimi-for-coding` stays next to engine `kimi-coding` because those native arrays copy the senpi-task category pair (leftover OpenCode-id key); they are not shared with the OpenCode edition, which keeps its own table in `packages/model-core`. A test loads the pinned senpi's `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and fails if a chain provider id is neither an engine id nor an allow-listed alias.
+
+||||||| e1693d8b4
+
+||||||| ed0fb0601
+
+||||||| f9843a842
+
+||||||| 2a04ce61b
+## 2026-09-24 - omo doctor reports the OpenCode-edition migration leftovers (#8831)
+
+`omo doctor` said nothing about the machine it had just been migrated from: an `omo` earlier on PATH than omo-ai's, the legacy `oh-my-openagent` / `oh-my-opencode` package still installed globally (the one whose `npm uninstall -g` can take omo-ai's `omo` with it, #8793), and the OpenCode plugin still registered in the OpenCode config. `packages/omo-native/bin/lib/doctor-migration.js` is new and adds three report-only checks, printed right after the `INFO Update:` line; `doctor.js` only imports and calls it.
+
+- PATH: every absolute PATH dir except a project `node_modules/.bin` is scanned for `omo` (plus `.cmd`/`.ps1`/`.exe` on Windows). Each entry's owner is the nearest `package.json` above its resolved symlink or above the package path its launcher shim names; a Codex Light wrapper (`# OMO_GENERATED_RUNTIME_WRAPPER`) is `lazycodex@<cached version>`. Every entry before omo-ai's own, or every entry when omo-ai is not on PATH, gets a `WARN another omo precedes omo-ai on PATH: <file> (<owner>)`. The fix is `bunx oh-my-openagent@beta install --platform=native` when the installer repairs that owner (oh-my-openagent / oh-my-opencode / lazycodex); otherwise it is "remove that file, or move <omo-ai bin dir> ahead of <dir> on PATH". The owner rules mirror `packages/omo-opencode/src/cli/install-native/legacy-omo-bin.ts`, which omo-native cannot import.
+- Legacy package: `oh-my-openagent` / `oh-my-opencode` under an npm global prefix (`npm_config_prefix`, `~/.npmrc` `prefix=`, and the prefix implied by every PATH bin dir) or under the bun global tree (`$BUN_INSTALL/install/global/node_modules`, default `~/.bun`). The warning names the package dir. For npm the remove command is `npm uninstall -g <pkg>`, followed by the doctor's own update command if `omo` disappears; for bun it is `bun remove -g <pkg>`.
+- OpenCode registration: every server config file `bin/lib/setup-opencode-assets.js` `opencodeConfigSources` names (the global dir's `config.json` / `opencode.json` / `opencode.jsonc`, `$OPENCODE_CONFIG`, then `~/.opencode` and `$OPENCODE_CONFIG_DIR`, layered the way OpenCode reads them), plus `tui.json` / `tui.jsonc` in each of those dirs, is parsed with `bin/lib/jsonc.js`. Any `plugin` entry naming a legacy package (`<pkg>`, `<pkg>@...`, `<pkg>/tui...`, string or `[name, options]` tuple) yields one `INFO OpenCode still loads the <pkg> plugin (<files>)` line. An unparsable file is skipped because OpenCode reports its own config errors.
+
+Nothing is deleted or rewritten. `runDoctor` options gain `env` / `homeDir` / `platform`, following the existing `env` injection, so `test/doctor-migration.test.ts` runs every check against fixture trees and never reads the real PATH or home.
+
+||||||| e1693d8b4
+
+||||||| ed0fb0601
+
+||||||| 07452eda9
+## 2026-09-24 - omo-senpi component info logs stay off stderr unless OMO_DEBUG is set (#8826)
+
+`packages/omo-senpi/src/extension/compose.ts` `defaultLogger.info` printed every component diagnostic through `console.error`, so `omo -p` / `--mode json` dumped objects (ulw-loop skip, ulw-execute-continuation skip, model-profile selection) onto the user's stderr. `info` is now silent unless `OMO_DEBUG` is set (the same switch the bun launcher shim already uses); `warn` and `error` still go to stderr; stdout is still unused (#8564). The model-profile selection sentence already reaches the user through the engine notice (`pi.sendMessage`); the extra object dump is the debug line. Documented in `docs/reference/configuration.md`. Fixes #8819.
+
+||||||| e1693d8b4
+
+||||||| ed0fb0601
+## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
+
+`omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
+
+The launcher now runs that command. `--dry-run` / `--print` keep the print-only answer. A successful run streams the manager output and prints `omo <before> -> <after> (engine: senpi ...)`. A failed run exits non-zero with the same command to retry by hand. Bun-global installs spawn `bun add -g omo-ai@beta` with `BUN_INSTALL` overlaid from the install prefix; npm stays `npm i -g omo-ai@beta`. The engine pin is untouched: the launcher never updates `@code-yeongyu/senpi` separately.
+
+Verification: `bun test packages/omo-native/test/self-update.test.ts packages/omo-native/test/launcher.test.ts` 54/0; `node --check` on the three JS files. Sandbox `BUN_INSTALL`: overlay the new updater onto `omo-ai@5.0.0-0.beta.88`, `omo update --dry-run` printed only and left 88, `omo update` streamed bun add and reported `omo 5.0.0-0.beta.88 -> 5.0.0-0.beta.89 (engine: senpi 2026.9.24)`.
+
+||||||| e1693d8b4
+## 2026-09-24 - native install offers to run `omo setup`; the advertised installer tag follows the plugin's channel (#8828)
+
+`install --platform=native` used to end with "OmO Native installed. Run omo setup to finish onboarding." even though it had just verified that `omo` on PATH is omo-ai. In the interactive installer (`packages/omo-opencode/src/cli/tui-installer.ts`) a verified install is now followed by `Run omo setup now to carry your OpenCode credentials, MCP servers and skills over?` (clack confirm, default Yes); yes runs `<verified path> setup` with the terminal inherited, so setup's own consent prompt works. The path is the one `verifyOmoCommand` probed (`OmoCommandVerification.binPath` -> `NativeInstallOutcome.omoBinPath`), never a fresh `omo` lookup. The decision lives in `cli/install-native/offer-native-setup.ts` (`offerNativeSetup`, injected `confirm` / `runSetup`); a setup that exits non-zero or cannot be spawned leaves a warning pointing back at `omo setup`. An unverified install is never offered and keeps the PATH fix #8793 prints. `--no-tui` (`cli-installer.ts`, unchanged) keeps printing the next step.
+
+`formatNativeInstallEntryCommand` (`cli/install-native/plan.ts`) takes the running plugin's version (default: the bundled `package.json` version via `getBundledVersion`) and uses `@beta` only for a prerelease (`isPrereleaseVersion`); a stable build advertises the bare `oh-my-openagent`, which resolves to `latest`. The nudge toast, the `/native` dialog and the installer hint all go through it, so they follow without their own change; on the current `5.0.0-beta.89` they still say `@beta`.
+
+Verification: `bun test packages/omo-opencode/src/cli` 841/0, native-edition nudge surfaces 60/0, with new cases for the offer (yes -> verified path, no, verify-failed, spawn error), the TUI wiring and `--no-tui`, and the tag per channel; each of three production mutations (bare `omo`, offer when unverified, hard-coded `@beta`) fails its cases. PTY sandbox run of the built installer answering yes: setup starts from `<sandbox>/bun/bin/omo` and imports the seeded OpenCode key after its own `[y/N]`; `--no-tui` run prints the step and writes no `~/.omo`.
+
+||||||| e1693d8b4
+## 2026-09-24 - A memory commit mid-session no longer changes the system prompt; the change arrives as a notice (#8470)
+
+The senpi memory block was compiled from the memory repo HEAD on every turn. A commit that added a file (the agent's own `memory create`, a reflection, a facts run, another session) grew `<external_projection>`, a system-file edit rewrote the projected body, and a large edit moved the pressure line; each changed the system prompt hash, so the provider's prefix cache missed the whole conversation behind it (~180K tokens rewritten on a 190K session).
+
+A session now pins the block to its first turn's HEAD and records the pin as an `omo-memory:projection-pin` session entry, so resume, host restart and runtime reload reproduce the same bytes. The pressure line is computed at the same pinned revision. What changed after the pin reaches the model as one line of the existing late `<memory_notice>` message: added/updated/removed `system/*.md` and added/removed external paths, each change once, leaving out commits whose `Omo-Session` trailer is the current session. The block moves only where the cache is already cold or a refresh was asked for: after a compaction, on `/recompile`, or when the pinned commit no longer resolves. New and forked sessions pin fresh. `MemoryBlockCache.compile` takes an optional pinned revision; memory-core adds `projectedChangesBetween` and `revisionExists`. Pinned by `omo-senpi/.../memory/prompt-pinning.test.ts` and `memory-core/src/compile/{changes,cache}.test.ts`.
+## 2026-09-24 - "Restart to apply" actually applies: stale OpenCode plugin sandboxes are invalidated (#8801)
+
+OpenCode installs every npm plugin into `<opencode cache>/packages/<spec>/node_modules/<package>` and its `Npm.add()` returns that copy as soon as it exists, without re-resolving the tag. A moving tag (`@latest`, `@beta`, or a bare name, which OpenCode expands to `<name>@latest`) therefore froze at the first version installed: users on 4.19.4 never received 5.x, beta users stayed on the beta they first installed, and neither restarting OpenCode nor re-running the installer changed it - only deleting the sandbox by hand did. The update checker detected that sandbox (#4535 / #4318) and stopped claiming "Updated!", but its "Restart to apply" toast was still a promise nothing kept.
+
+`packages/omo-opencode/src/shared/opencode-plugin-sandbox.ts` now owns that path layout in one place: `toPluginSandboxSpec` (bare name -> `@latest`), `getPluginSandboxDir`, `isPluginSandboxDir` and `removePluginSandbox`. **`isPluginSandboxDir` is the safety guard and must stay on every removal path**: it accepts only a direct child of `<cache>/packages` named for one of `ACCEPTED_PACKAGE_NAMES`, comparing canonicalized paths (`$TMPDIR` symlinks make the raw strings disagree on macOS). The checker reaches its candidate by walking up from `import.meta.url`, which for a project-local, global or linked install resolves to a directory we do not own - removing that would destroy a user's workspace.
+
+`hooks/auto-update-checker/checker/sandbox-refresh.ts` never removes the sandbox during the session: the live session still reads bundled skills, the `./tui` export and provisioned binaries out of that directory. The checker writes a refresh marker (`.omo-refresh-pending`) into the sandbox, and every entry point loaded from a sandbox, the server plugin and the TUI plugin (`tui.ts`), takes a per-pid lease (`.omo-leases/<pid>`) and registers a `process.once("exit")` handler that removes a marked sandbox once no other live process holds a lease. The marker is needed because in the TUI OpenCode runs the server plugin inside a Worker that it stops with `worker.terminate()`, and a terminated Worker never emits `exit`; only the main thread, where the TUI plugin lives, does. The lease is needed because every OpenCode window shares one cache. Removal takes the whole spec directory, not just `node_modules/<package>`, because the sandbox's own `package.json`/lockfile can re-pin the old version on reinstall, and it renames the directory aside before deleting it, so a failed delete (a file Windows holds open, EACCES) never leaves the half-deleted copy that `Npm.add()` would then load. A removal that fails, or is skipped because another window is open, is recorded in the marker, and the next start shows it in the update notice instead of "Restart to apply". The installer (`cli/config-manager/refresh-opencode-plugin-sandbox.ts`, called from both `cli-installer.ts` and `tui-installer.ts` after the config is written) removes the sandbox for the spec it just wrote, marks it for refresh when OpenCode is still running from it, and prints any removal failure.
+
+`hooks/auto-update-checker/checker/semver-compare.ts` adds prerelease-aware comparison, and both `background-update-check.ts` and `check-for-update.ts` now treat only a strictly newer registry version as an update. The old `currentVersion !== latestVersion` test offered a "update" to an OLDER version whenever a local build ran ahead of the channel tag, and `shared/opencode-version.ts` `compareVersions` cannot be used here because it strips prerelease suffixes (it gates OpenCode host features) and so ranks `5.0.0-beta.85` equal to `5.0.0-beta.89`. User-pinned exact versions keep their existing notify-only behavior: no sandbox is touched for them by the checker.
+
+`docs/reference/known-issues.md` #5367 is rewritten to describe the new behavior; the manual `rm -rf` workaround stays, scoped to a session that was killed before it could run its exit handlers.
+
+||||||| 530692bc0
+
+## 2026-09-24 - native install also retires the Codex Light `omo` wrapper left in ~/.local/bin (#8793)
+
+Pre-rename Codex Light installs (lazycodex <= 4.19.4) wrote `omo` into `~/.local/bin` as a generated shell wrapper (`# OMO_GENERATED_RUNTIME_WRAPPER`, exec'ing `<CODEX_HOME>/plugins/cache/sisyphuslabs/omo/<version>/dist/cli/index.js`), not as a package-manager link, so the owner scan in `packages/omo-opencode/src/cli/install-native/legacy-omo-bin.ts` classified it `foreign` and left it shadowing omo-ai on PATH. `resolveOwner` now recognises that wrapper by the same marker the Light installer itself retires it with (`packages/omo-codex/src/install/codex-cache-bins.ts` `removeGeneratedRuntimeWrapper`) plus the Light cache path, and reports it as `lazycodex@<version>`; `LEGACY_OMO_BIN_PACKAGES` gains `lazycodex`. A script without the marker stays `foreign` even when it names the cache path. Only the wrapper file is removed; the Light cache and its other commands stay.
+
+Verification: `bun test packages/omo-opencode/src/cli/install-native` 32/0 three consecutive runs; install-native + both nudge surfaces + hint 98/0. Real surface: a sandbox HOME holding a copy of a real 4.19.4 Light wrapper ahead of the bun bin dir - before `omo --version` = `4.19.4`; `install --platform=native` removed it (`Removed the stale omo command left by lazycodex@4.19.4`), after `omo --version` = `omo 5.0.0-0.beta.89`.
+
+## 2026-09-24 - native install clears the legacy global `omo` bin and verifies what PATH resolves (#8793)
+
+`install --platform=native` used to be a bare `bun add -g omo-ai@beta` / `npm i -g omo-ai@beta`, which is wrong on every machine still carrying oh-my-openagent / oh-my-opencode 4.19.4 or earlier: `latest` is still 4.19.4 and it owns a global `omo` bin, so the npm install dies with `EEXIST: file already exists <prefix>/bin/omo` and the bun install silently lands beside it, leaving `omo --version` printing `4.19.4` whenever the npm bin dir sorts earlier on PATH. The docs described the ordering; no code path detected it.
+
+`packages/omo-opencode/src/cli/install-native/` gains three modules. `legacy-omo-bin.ts` resolves the PATH directories plus the bun global bin dir (`resolveOmoBinEnvironment`, injected as `NativeInstallDependencies.environment`), finds every `omo` entry (Windows `.cmd`/`.ps1`/`.exe` siblings included, dangling symlinks included because they still occupy the name), and classifies each by its owning package: symlink realpath walked up to the nearest `package.json`, else the package path embedded in a launcher shim, and an owner path that is not absolute is never walked so a Windows `.cmd` cannot resolve against the cwd. `omo-ai` is `native`, oh-my-openagent / oh-my-opencode are `legacy`, everything else is `foreign` and is never touched. `repair-legacy-omo-bin.ts` unlinks only the conflicting `omo` entries of legacy owners - the package and its other commands (`oh-my-openagent`, `lazycodex`, ...) stay - and reports the exact path, owner and version, or a warning carrying `rm`/`del` and the `npm uninstall -g` fallback when the unlink fails. `verify-omo-command.ts` runs after the install: the `omo` PATH resolves must be omo-ai's and `omo --version` must answer as `omo ...`, otherwise the outcome carries the exact `export PATH="<dir>:$PATH"` fix for a shadowing entry or an off-PATH install. `runNativeInstall` wires detect -> repair -> install -> verify, and the outcome grows `warnings` and `verified`; `NativeInstallFailure.hints` carries the manual cleanup when a repair failed and the install then hit EEXIST. Both installers print notes and warnings (`cli-installer.ts`, `tui-installer.ts`).
+
+The advertised command changes everywhere a user sees it: the native-edition nudge toast, the `/native` dialog install action, and the installer hint now say `bunx oh-my-openagent@beta install --platform=native` (`npx` without bun) via `formatNativeInstallEntryCommand` (the tag is required: `latest` 4.19.4 rejects `--platform=native`), because that is the one spelling correct on a machine with the legacy bin and on one without. `docs/guide/installation.md` and `docs/reference/omo-ai-publishing.md` describe the new behavior and keep the by-hand ordering.
+
+Auto-removing or auto-upgrading the whole legacy package stays out: upgrading to a release without the `omo` bin means moving a user from stable `latest` (4.19.4) to the 5.x beta, and uninstalling takes away commands they still use. Anything beyond the one orphaned alias is the user's call.
+
+Review fixes: a launcher shim counts as legacy only when the entry file it launches (absolute, or relative to the shim dir via `%dp0%` / `$basedir`) exists inside an installed package whose manifest names a legacy package, so a user's own `omo` script that merely mentions a legacy path stays `foreign`; relative PATH entries and `node_modules/.bin` dirs are no longer scanned; on the npm path the outcome notes that a later `npm uninstall -g oh-my-openagent` also unlinks omo-ai's `omo` (npm removes every bin name the package declares; `bun remove -g` does not) and prints `npm i -g omo-ai@beta` to restore it; the removal note no longer suggests reinstalling the old package; the success line no longer points at `omo setup` while `omo` on PATH is not omo-ai; the docs keep `bun add -g omo-ai@beta` as the lead.
+
+Verification: `bun test packages/omo-opencode/src/cli packages/omo-opencode/src/hooks/native-edition-nudge packages/omo-opencode/src/features/native-edition-nudge` 857/0. Real-surface QA in isolated `HOME`/`NPM_CONFIG_PREFIX`/`BUN_INSTALL` prefixes with oh-my-openagent@4.19.4 present: before, `npm i -g omo-ai@beta` fails EEXIST and `omo --version` prints `4.19.4`; after driving the built CLI, the stale shim is gone, the other legacy bins survive, and `omo --version` prints `omo 5.0.0-0.beta.89 (engine: senpi 2026.9.24)` on both the bun and the npm path. A clean prefix installs with no removal note.
+
+||||||| 530692bc0
+
+## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest (#8799)
+
+`docs/guide/installation.md` rewrites the import stage of the `omo setup` section. It now says that a credential whose provider id differs between harnesses is still imported when the endpoint matches (opencode's `zai-coding-plan` key lands on the `zai` provider), and that a skipped credential comes with the command that fixes it: start `omo` and run `/login <provider>` for an OAuth login, or define the provider and its baseUrl in the engine's `models.json` and then `/login` it for an API key nothing serves. The old text pointed at `omo auth`, which only prints or checks credentials that already exist and cannot sign anyone in. Implementation detail lives in `packages/omo-native/changes.md`.
+
+## 2026-09-24 - installation guide: `omo setup` also carries over opencode MCP servers and skills
+
+`docs/guide/installation.md` extends the import stage of the `omo setup` section: alongside credentials, the same stage converts the MCP servers declared in `~/.config/opencode/opencode.json[c]` into the engine's schema and merges them into the global `~/.omo/agent/mcp.json`, and copies global OpenCode skills into `~/.omo/agent/skills/`, with its own preview and confirmation. The text names why both are global rather than per-project, which opencode config files and directories are read (the global dir's `config.json`, `opencode.json` and `opencode.jsonc` merged, with `OPENCODE_CONFIG`, `~/.opencode/` and `OPENCODE_CONFIG_DIR` layered on top), that an existing name - or a skill name omo bundles - is kept and reported, that `mcp.json` is backed up before it is rewritten, and that a server using shell command substitution or a `{file:...}` placeholder, or a skill without a description, is refused with a notice. Implementation detail lives in `packages/omo-native/changes.md`.
+
+||||||| da3ba4f48
+
+||||||| 530692bc0
+
+## 2026-09-24 - skills instruct the brand command for --list-tips, --onboard, and hyperplan restart (#8794)
+
+`packages/omo-senpi/skills/give-me-tips/SKILL.md` and `onboarding/SKILL.md` told the agent to list tips with `senpi --list-tips`, which is not on PATH for an OmO Native (`omo-ai`) install. They now use `omo --list-tips` on OmO Native (session env carries `OMO_NATIVE=1` / `OMO_BIN`; the npm launcher, compiled omob remapper, and local-install launcher all set both) and `senpi --list-tips` on a plain senpi install, with `"$OMO_BIN" --list-tips` when the brand command is not on PATH. `skills/AGENTS.md` follows. The same brand-command rule covers the onboarding re-run flag (`omo --onboard` / `senpi --onboard`; `--onboard` is an omo-senpi extension flag, not an engine CLI) and the hyperplan restart hint (`omo` / `senpi` without `--no-omo-task`). Onboarding lane 2 (Migration help) is unchanged.
+
+||||||| 530692bc0
+
+||||||| 1f107edbe
 ## 2026-09-24 - installer replaces stale tui.json plugin entries instead of appending a second one (#8798)
 
 `packages/omo-opencode/src/cli/config-manager/add-tui-plugin-to-tui-config.ts` now normalizes `tui.json` the way `add-plugin-to-opencode-config.ts` normalizes `opencode.json`: every entry belonging to this plugin is dropped before the entry being installed is appended, so re-running the installer over a config an older installer wrote leaves exactly one entry. Before this, only the `<pkg>/tui` subpath form was filtered, so a 4.19.4-era `tui.json` (`["oh-my-openagent@latest"]`) kept that entry alongside the freshly written spec and the TUI loaded the plugin twice from two different specs.
@@ -22,7 +145,6 @@ notice in the recall section.
 `ensureTuiPluginEntry` reads a tuple-form server entry in `opencode.json` the same way `addPluginToOpenCodeConfig` does, so `[["oh-my-openagent", { ... }]]` still rewrites `tui.json`. A `plugin` field that is a foreign string is kept as one entry; a non-array non-string `plugin` value is left untouched (`malformed`). `checkTuiPluginConfig` warns when `tui.json` lists more than one managed entry (the leftover `["oh-my-openagent@latest", "oh-my-openagent"]` shape) and passes after the writer collapses it to one.
 
 ||||||| 530692bc0
-
 ## 2026-09-24 - agent-model-matching guide follows the OmO Native routing tables (#8805)
 
 `docs/guide/agent-model-matching.md` was re-checked against `packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`, `packages/senpi-task/src/category/{fallback-chains,builtins,*-categories}.ts`, `packages/senpi-task/src/agents/builtin/{fallback-chains,code-reviewer,gate-reviewer,qa-executor}.ts` and Senpi's `prompt-preset/presets.ts` `resolvePresetName`.
@@ -326,6 +448,10 @@ Chain and default assertions moved with the change in `fallback-chains.test.ts` 
 ## 2026-09-21 - OpenCode-edition installs point at the standalone Senpi edition (#8593)
 
 `packages/omo-opencode/src/cli/senpi-edition-hint.ts` owns the install command, the guide URL, the hint lines and the `!hasSenpi` gate. `cli-installer.ts` prints the lines after the Magic Word box and `tui-installer.ts` logs them before the star prompt, so the two installers read one source. `postinstall.mjs` prints a one-line notice naming the edition and the command. `docs/guide/installation.md` uses the bun install line throughout, and the README anchor follows the renamed Senpi heading. Coverage: helper unit tests, CLI and TUI installer tests for both the OpenCode and senpi platforms, and the postinstall notice pin. Real-surface runs of the `--no-tui` installer and `node postinstall.mjs` in an isolated HOME are recorded on PR #8538.
+
+## 2026-09-24 - Memory `<external_projection>` lists one comma line per directory (#8810)
+
+`renderExternalProjection` drew the memory repo's non-`system/`, non-`skills/` paths as a box-drawing tree: every file line paid `├── `/`└── ` plus a `│   ` or blank prefix per depth. On a repo with 1,478 external files the block was 83,779 characters and 43,400 Opus input tokens, about 40% of a first-turn request. The block now opens with `$MEMORY_DIR/` (followed by `: <names>` when the root holds files) and then one line per directory that directly holds files, `<dir>/: <name>, <name>`, directories and names sorted. File names stay exact and every path is still listed, so the block carries the same information; the same 1,478 paths measure 33,231 tokens. Bounding or summarizing the list and the mid-session recompile on added files (#8470) are unchanged. Pinned by `compile/render.test.ts`; the (unread) `compile/fixtures/full.golden.txt` sample follows the new shape.
 
 ## 2026-09-21 - Bound deferred LSP daemon startup retries (#8561)
 
@@ -686,6 +812,7 @@ shell lookup for bare `tsc` and `bun` commands on Windows. The release builder
 therefore reaches the version-stamping step instead of letting the shell split
 the runtime path at `C:\Program`. The command-policy regression tests cover
 absolute Windows paths, bare package commands, and POSIX execution.
+
 ## 2026-08-27 — Record post-beta.23 merged follow-ups
 
 The root product changelog now records the pull requests merged after the
@@ -938,6 +1065,7 @@ from the machine.
 **A future refactor or sync must not break:** attribution must never derive from hostname,
 hardware, or accounts; keep both capture paths (session client + facade) attributed or events
 disagree about their own schema.
+
 ## 2026-08-20 — Demand parent-side verification of DAG completions
 
 A DAG node's completion summary was delivered to the orchestrating parent as if
@@ -1134,6 +1262,7 @@ budget a test grants a subprocess or timed promise; `test/test-timeout-budget.te
 reads both the configured value and the real budgets out of the test sources and
 fails if that ordering is ever reintroduced. Keep the bound proportionate: it
 exists to survive a cold Windows process spawn, not to hide a genuine hang.
+
 ## 2026-09-06 — Keep lead polling alive through runtime access windows
 
 Lead polling now suppresses repeated `EPERM` and `EACCES` runtime-directory errors, reports the first unavailable transition and the subsequent recovery, and leaves mailbox state untouched while the runtime directory cannot be enumerated. Mailbox reads and missing-directory handling remain unchanged.

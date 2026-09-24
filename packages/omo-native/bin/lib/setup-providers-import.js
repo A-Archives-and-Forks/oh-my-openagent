@@ -1,0 +1,119 @@
+/**
+ * The custom-provider stage of `omo setup`: classifies what `setup-opencode-providers.js` planned
+ * against the engine's `<agentDir>/models.json` and `auth.json`, previews, asks, writes. A provider
+ * id models.json already has, and a key auth.json already has, are never overwritten.
+ */
+
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { readAuthStore, timestamp, writeAuthStore } from "./auth-store.js"
+import { parseJsonc } from "./jsonc.js"
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+// The engine strips comments before parsing models.json (model-config.js `ModelConfig.parse`), so a
+// commented file is read the same way here. `providers` must be an object (model-config-schema.js
+// `ModelsConfigSchema`); a file where it is not is one the engine already rejects, and is left alone.
+function readModelsTarget(path) {
+  if (!existsSync(path)) return { document: { providers: {} }, bytes: undefined }
+  const bytes = readFileSync(path, "utf8")
+  try {
+    const document = parseJsonc(bytes)
+    if (!isPlainObject(document)) throw new Error("expected object")
+    const providers = document.providers ?? {}
+    if (!isPlainObject(providers)) throw new Error("expected providers object")
+    return { document: { ...document, providers }, bytes }
+  } catch {
+    return { malformed: true, bytes }
+  }
+}
+
+function classify(plan, models, auth) {
+  const result = { added: [], skippedExisting: [], blocked: [], keys: [], keysExisting: [], keysBlocked: [] }
+  for (const provider of plan.providers) {
+    if (models.malformed) {
+      result.blocked.push(provider.id)
+      continue
+    }
+    if (Object.hasOwn(models.document.providers, provider.id)) {
+      result.skippedExisting.push(provider.id)
+      continue
+    }
+    result.added.push(provider)
+    // A key only ever rides with the provider it belongs to: never onto a models.json entry the user wrote.
+    if (provider.key === undefined) continue
+    if (auth.malformed) result.keysBlocked.push(provider.id)
+    else if (Object.hasOwn(auth.entries, provider.id)) result.keysExisting.push(provider.id)
+    else result.keys.push({ provider: provider.id, key: provider.key.key })
+  }
+  return result
+}
+
+function keyLine(provider, result) {
+  if (result.keysExisting.includes(provider.id)) return "key: kept the existing auth.json entry"
+  if (result.keysBlocked.includes(provider.id)) return "key: not imported (malformed auth.json)"
+  if (provider.key !== undefined) return `key: from ${provider.key.source}`
+  return `key: none found - start omo and run /login ${provider.id}`
+}
+
+function list(label, ids) {
+  return `${label}: ${ids.length > 0 ? ids.join(", ") : "none"}`
+}
+
+function formatPlan(result) {
+  const lines = []
+  if (result.blocked.length > 0) lines.push(`WARN senpi: malformed models.json; these custom providers were not imported: ${result.blocked.join(", ")}`)
+  for (const provider of result.added) {
+    const { config } = provider
+    const models = config.models.map((model) => `${provider.id}/${model.id}`).join(", ")
+    lines.push(`custom provider ${provider.id} -> ${config.baseUrl} (${config.api}, from ${provider.npm}), ${config.models.length} model(s): ${models}; ${keyLine(provider, result)}`)
+  }
+  lines.push(list("planned-providers", result.added.map((provider) => provider.id)), list("providers-skipped-existing", result.skippedExisting))
+  return `${lines.join("\n")}\n`
+}
+
+function writeModels(path, target, added) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  if (target.bytes !== undefined) copyFileSync(path, `${path}.bak-${timestamp()}`)
+  const next = { ...target.document, providers: { ...target.document.providers } }
+  for (const provider of added) next.providers[provider.id] = provider.config
+  // A models.json symlinked from a dotfiles checkout is written through the link, not replaced by a copy.
+  const destination = target.bytes !== undefined ? realpathSync(path) : path
+  const temporary = `${destination}.tmp-${process.pid}`
+  try {
+    // Provider headers can carry tokens, so this file gets the same 0600 the auth store does.
+    writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+    renameSync(temporary, destination)
+  } finally {
+    if (existsSync(temporary)) unlinkSync(temporary)
+  }
+}
+
+/**
+ * Same detect -> preview -> consent -> write shape as the credential and asset stages; `confirm`
+ * is the caller's consent prompt, so every stage asks the same way.
+ */
+export async function importOpencodeProviders(stage) {
+  for (const notice of stage.plan.notices) process.stdout.write(`${notice}\n`)
+  if (stage.plan.providers.length === 0) return
+  const paths = { models: join(stage.agentDir, "models.json"), auth: join(stage.agentDir, "auth.json") }
+  const models = readModelsTarget(paths.models)
+  const auth = readAuthStore(paths.auth)
+  const result = classify(stage.plan, models, auth)
+  process.stdout.write(formatPlan(result))
+  if (stage.args.includes("--dry-run") || result.added.length === 0) return
+  if (!await stage.confirm(
+    `Import ${result.added.length} custom provider(s) into ${paths.models} and ${result.keys.length} API key(s) into ${paths.auth}? [y/N] `,
+  )) {
+    return
+  }
+  writeModels(paths.models, models, result.added)
+  if (result.keys.length > 0) writeAuthStore(paths.auth, auth, result.keys)
+  process.stdout.write(`${[
+    `providers-imported: ${result.added.map((provider) => provider.id).join(", ")}`,
+    `provider-keys-imported: ${result.keys.length}`,
+    `providers-skipped-existing: ${result.skippedExisting.length}`,
+  ].join("\n")}\n`)
+}

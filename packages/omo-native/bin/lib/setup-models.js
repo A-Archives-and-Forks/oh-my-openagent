@@ -2,13 +2,16 @@ function values(items) {
   return items.length > 0 ? items.join(", ") : "none"
 }
 
-export function formatModelReport(inventory) {
+// With a real custom provider found, the provider stage carries it over, so the placeholder
+// template would only describe by hand what setup is about to do.
+export function formatModelReport(inventory, { customProviders = false } = {}) {
   const lines = ["", "MODEL AVAILABILITY"]
   for (const harness of inventory.harnesses) {
     lines.push(`${harness.id}: providers ${values(harness.providers)}; models ${harness.modelHint}`)
   }
+  lines.push("Model-to-agent guidance: docs/guide/agent-model-matching.md")
+  if (customProviders) return `${lines.join("\n")}\n`
   lines.push(
-    "Model-to-agent guidance: docs/guide/agent-model-matching.md",
     "Ready-to-paste omo.json models catalog template:",
     JSON.stringify({
       models: {
@@ -21,6 +24,6 @@ export function formatModelReport(inventory) {
   return `${lines.join("\n")}\n`
 }
 
-export function printModelReport(inventory) {
-  process.stdout.write(formatModelReport(inventory))
+export function printModelReport(inventory, options) {
+  process.stdout.write(formatModelReport(inventory, options))
 }
