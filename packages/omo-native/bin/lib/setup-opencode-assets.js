@@ -168,14 +168,30 @@ function convertServer(name, entry, notices) {
   return config
 }
 
-function readSkills(configDirs) {
+// The engine drops a SKILL.md whose frontmatter has no `description` (skills.js `loadSkillFromFile`),
+// so copying one would report an import the next session never shows.
+function hasDescription(skillFile) {
+  const text = readFileSync(skillFile, "utf8").replace(/^\uFEFF/, "")
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)
+  return frontmatter !== null && /^description:/m.test(frontmatter[1])
+}
+
+function readSkills(configDirs, notices) {
   const skills = []
   for (const root of configDirs.flatMap((configDir) => [join(configDir, "skills"), join(configDir, "skill")])) {
     if (!existsSync(root)) continue
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       const source = join(root, entry.name)
-      if (!existsSync(join(source, "SKILL.md"))) continue
+      const skillFile = join(source, "SKILL.md")
+      if (!existsSync(skillFile)) {
+        notices.push(`NOTICE opencode: skill ${entry.name} has no SKILL.md at its top level; not imported - copy it into the omo skills dir by hand if it holds nested skills`)
+        continue
+      }
+      if (!hasDescription(skillFile)) {
+        notices.push(`NOTICE opencode: skill ${entry.name} has no description in its SKILL.md frontmatter, so omo would not load it; not imported`)
+        continue
+      }
       if (skills.some((skill) => skill.name === entry.name)) continue
       skills.push({ name: entry.name, source })
     }
@@ -194,5 +210,5 @@ export function planOpencodeAssets(options = {}) {
     const converted = convertServer(name, entry, notices)
     if (converted) mcpServers.push({ name, config: converted })
   }
-  return { mcpServers, skills: readSkills(sources.directories), notices }
+  return { mcpServers, skills: readSkills(sources.directories, notices), notices }
 }

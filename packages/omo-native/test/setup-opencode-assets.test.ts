@@ -265,6 +265,25 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given skill dirs the engine would not load", () => {
+    describe("#when they are planned", () => {
+      test("#then each is left out with a notice naming it and the valid skill still imports", () => {
+        const root = mkdtempSync(join(tmpdir(), "omo-assets-"))
+        roots.push(root)
+        const skills = join(root, "config", "opencode", "skills")
+        write(join(skills, "no-skill-file", "README.md"), "not a skill\n")
+        write(join(skills, "no-description", "SKILL.md"), "---\nname: no-description\n---\n\nbody\n")
+        write(join(skills, "good", "SKILL.md"), "---\nname: good\ndescription: fine\n---\n")
+
+        const plan = planOpencodeAssets({ home: join(root, "home"), env: { XDG_CONFIG_HOME: join(root, "config") } })
+
+        expect(plan.skills.map((skill) => skill.name)).toEqual(["good"])
+        expect(plan.notices.join("\n")).toContain("skill no-skill-file has no SKILL.md")
+        expect(plan.notices.join("\n")).toContain("skill no-description has no description")
+      })
+    })
+  })
+
   describe("#given no opencode config at all", () => {
     describe("#when it is planned", () => {
       test("#then the plan is empty and silent", () => {
