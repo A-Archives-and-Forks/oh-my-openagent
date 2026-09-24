@@ -219,7 +219,7 @@
     "@xterm/xterm": "^6.0.0",
     "bun-types": "1.4.2",
     "node-pty": "^1.1.0",
-    "omowright": "github:code-yeongyu/omowright#25781c8ac04f9aae358b06551520b792ac45c6ed",
+    "omowright": "github:code-yeongyu/omowright#293ca5002cbd4c8b0c104c5934683385ef7e0d3a",
     "puppeteer-core": "^25.11.0",
     "typescript": "^7.0.2"
   },
