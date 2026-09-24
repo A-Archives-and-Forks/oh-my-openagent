@@ -4,7 +4,7 @@
  * id models.json already has, and a key auth.json already has, are never overwritten.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { readAuthStore, timestamp, writeAuthStore } from "./auth-store.js"
 import { parseJsonc } from "./jsonc.js"
@@ -79,11 +79,13 @@ function writeModels(path, target, added) {
   if (target.bytes !== undefined) copyFileSync(path, `${path}.bak-${timestamp()}`)
   const next = { ...target.document, providers: { ...target.document.providers } }
   for (const provider of added) next.providers[provider.id] = provider.config
-  const temporary = `${path}.tmp-${process.pid}`
+  // A models.json symlinked from a dotfiles checkout is written through the link, not replaced by a copy.
+  const destination = target.bytes !== undefined ? realpathSync(path) : path
+  const temporary = `${destination}.tmp-${process.pid}`
   try {
     // Provider headers can carry tokens, so this file gets the same 0600 the auth store does.
     writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
-    renameSync(temporary, path)
+    renameSync(temporary, destination)
   } finally {
     if (existsSync(temporary)) unlinkSync(temporary)
   }

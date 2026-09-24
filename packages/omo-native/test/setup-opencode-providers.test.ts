@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -244,6 +244,26 @@ describe("omo setup opencode custom provider import", () => {
         expect(["models.json", "auth.json"].map((name) => readFileSync(join(item.agentDir, name), "utf8"))).toEqual(bytes)
         expect(readdirSync(item.agentDir).filter((name) => name.includes(".bak-"))).toEqual(backups)
         expect(second.stdout).toContain("providers-skipped-existing: acme, fresh")
+      })
+    })
+  })
+
+  describe("#given models.json is a symlink into a dotfiles checkout", () => {
+    describe("#when setup is accepted", () => {
+      // Creating a symlink on Windows needs a privilege CI runners do not hold.
+      test.skipIf(process.platform === "win32")("#then the provider lands in the linked file and the link stays a link", () => {
+        const item = fixture()
+        const linked = join(dirname(item.agentDir), "dotfiles", "models.json")
+        write(linked, JSON.stringify({ providers: {} }))
+        mkdirSync(item.agentDir, { recursive: true })
+        symlinkSync(linked, join(item.agentDir, "models.json"))
+        opencode(item, { provider: { acme: ACME } })
+
+        const result = run(item, ["setup", "--yes"])
+
+        expect(result.status).toBe(0)
+        expect(lstatSync(join(item.agentDir, "models.json")).isSymbolicLink()).toBe(true)
+        expect(Object.keys(readJson(linked).providers)).toEqual(["acme"])
       })
     })
   })
