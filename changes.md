@@ -18,6 +18,43 @@ Review fixes: a launcher shim counts as legacy only when the entry file it launc
 
 Verification: `bun test packages/omo-opencode/src/cli packages/omo-opencode/src/hooks/native-edition-nudge packages/omo-opencode/src/features/native-edition-nudge` 857/0. Real-surface QA in isolated `HOME`/`NPM_CONFIG_PREFIX`/`BUN_INSTALL` prefixes with oh-my-openagent@4.19.4 present: before, `npm i -g omo-ai@beta` fails EEXIST and `omo --version` prints `4.19.4`; after driving the built CLI, the stale shim is gone, the other legacy bins survive, and `omo --version` prints `omo 5.0.0-0.beta.89 (engine: senpi 2026.9.24)` on both the bun and the npm path. A clean prefix installs with no removal note.
 
+||||||| 530692bc0
+
+## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest (#8799)
+
+`docs/guide/installation.md` rewrites the import stage of the `omo setup` section. It now says that a credential whose provider id differs between harnesses is still imported when the endpoint matches (opencode's `zai-coding-plan` key lands on the `zai` provider), and that a skipped credential comes with the command that fixes it: start `omo` and run `/login <provider>` for an OAuth login, or define the provider and its baseUrl in the engine's `models.json` and then `/login` it for an API key nothing serves. The old text pointed at `omo auth`, which only prints or checks credentials that already exist and cannot sign anyone in. Implementation detail lives in `packages/omo-native/changes.md`.
+
+||||||| 530692bc0
+
+## 2026-09-24 - skills instruct the brand command for --list-tips, --onboard, and hyperplan restart (#8794)
+
+`packages/omo-senpi/skills/give-me-tips/SKILL.md` and `onboarding/SKILL.md` told the agent to list tips with `senpi --list-tips`, which is not on PATH for an OmO Native (`omo-ai`) install. They now use `omo --list-tips` on OmO Native (session env carries `OMO_NATIVE=1` / `OMO_BIN`; the npm launcher, compiled omob remapper, and local-install launcher all set both) and `senpi --list-tips` on a plain senpi install, with `"$OMO_BIN" --list-tips` when the brand command is not on PATH. `skills/AGENTS.md` follows. The same brand-command rule covers the onboarding re-run flag (`omo --onboard` / `senpi --onboard`; `--onboard` is an omo-senpi extension flag, not an engine CLI) and the hyperplan restart hint (`omo` / `senpi` without `--no-omo-task`). Onboarding lane 2 (Migration help) is unchanged.
+
+||||||| 530692bc0
+
+||||||| 1f107edbe
+
+## 2026-09-24 - installer replaces stale tui.json plugin entries instead of appending a second one (#8798)
+
+`packages/omo-opencode/src/cli/config-manager/add-tui-plugin-to-tui-config.ts` now normalizes `tui.json` the way `add-plugin-to-opencode-config.ts` normalizes `opencode.json`: every entry belonging to this plugin is dropped before the entry being installed is appended, so re-running the installer over a config an older installer wrote leaves exactly one entry. Before this, only the `<pkg>/tui` subpath form was filtered, so a 4.19.4-era `tui.json` (`["oh-my-openagent@latest"]`) kept that entry alongside the freshly written spec and the TUI loaded the plugin twice from two different specs.
+
+`isOmoManagedTuiEntry()` in `packages/omo-opencode/src/cli/doctor/checks/tui-plugin-config.ts` is the single predicate for "this entry is ours": bare package name, any tag/version spec, the legacy `oh-my-opencode` name, the `<pkg>/tui` subpath, our `file:` dev entries, and the `file://.../(src|dist)/index.(ts|js)` source specs `addPluginToOpenCodeConfig` already treats as ours, in string or `[name, options]` tuple form. Keep the doctor predicates and this writer sharing it - a second copy is how the two files drifted in the first place. The writer now filters the raw `plugin` array instead of a string-only projection, so foreign tuple entries survive the rewrite (they were silently dropped before).
+
+`ensureTuiPluginEntry` reads a tuple-form server entry in `opencode.json` the same way `addPluginToOpenCodeConfig` does, so `[["oh-my-openagent", { ... }]]` still rewrites `tui.json`. A `plugin` field that is a foreign string is kept as one entry; a non-array non-string `plugin` value is left untouched (`malformed`). `checkTuiPluginConfig` warns when `tui.json` lists more than one managed entry (the leftover `["oh-my-openagent@latest", "oh-my-openagent"]` shape) and passes after the writer collapses it to one.
+
+||||||| 530692bc0
+## 2026-09-24 - agent-model-matching guide follows the OmO Native routing tables (#8805)
+
+`docs/guide/agent-model-matching.md` was re-checked against `packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`, `packages/senpi-task/src/category/{fallback-chains,builtins,*-categories}.ts`, `packages/senpi-task/src/agents/builtin/{fallback-chains,code-reviewer,gate-reviewer,qa-executor}.ts` and Senpi's `prompt-preset/presets.ts` `resolvePresetName`.
+
+- New lead paragraph: with no config the session runs Recommended and children resolve their own chains, so most readers can skip the page.
+- "The recommended tier" becomes "The recommended models" (the six-model Recommended ladder); GPT-5.6 Sol and "Fable 5" naming are gone, and Kimi K3 / GLM 5.3 are no longer called unsupported while the default ladder picks them.
+- The preset table covers every name `resolvePresetName` returns (GPT-6 family -> `gpt-6-astra`, `claude-fable-5-1`, `claude-opus-5`, the Opus 4.x line, `kimi-k2-6/7/8`, SWE-2 -> `kimi-k3`, the DeepSeek V4 split, `grok-4.7`, the GPT-5 line through `gpt-5.6`).
+- Category defaults for `ultrabrain` / `deep-low` / `deep-high` read `chatgpt-subscription/...`; chain rungs list `anthropic-subscription` / `chatgpt-subscription` first as the source does; the `quick` Luna rung lists `openai`; `plan-reviewer` has one elided rung, not two.
+- Documented: `requiresModel` gates (`ultrabrain`, `deep-low`, `deep-high`, `architect`), dead-chain hiding, the explicit-config bypass, the ulw reviewer categories, the TUI exception in the rules list, a resolution step for the gate, current Fable 5.1 placements, and Example C moved to `gpt-6-sol`.
+- The retired `deep` category name is replaced by `deep-low` / `deep-high`.
+
+`docs/guide/overview.md` and `docs/guide/installation.md` drop the GPT-5.6 Sol recommendation, the retired Capable / Deep work profile names and the "quick runs on Kimi high-speed" claim.
 ## 2026-09-24 - ulw-research deliverable contract: lane interview, static gates, outcome manifest, bounded repair (#8611)
 
 `packages/shared-skills/skills/ulw-research/scripts/` (new) is a zero-dependency Node CLI, `report-tools.mjs`, dispatching `check`, `layout-probe`, `repair decide`, `outcome init|set|gate|render|state|verify|finish|briefing`, `format-extract` and `--help --json` (exit 0 pass, 1 semantic failure, 2 usage or IO). Modules: `contracts.mjs` (the defect-code table, the only place severities live; enums; manifest and repair-state validators), `outcome.mjs`, `repair-tracker.mjs`, `html-lite.mjs` + `entities.mjs`, `css-lite.mjs`, `design-spec.mjs`, `gates-static.mjs` composing `gates-text.mjs` / `gates-figures.mjs` / `gates-structure.mjs` (G1-G15), `layout-probe.mjs` + `gates-layout.mjs` (L1-L5; the probe is evaluated by the orchestrator through the browser skill's owned headless engine), `format-extract.mjs` + `format-extract-css.mjs`, `cli-support.mjs`, `entry-guard.mjs`, `report-tools-commands.mjs`; every module is at most 250 lines with a co-located bun test. `references/deliverable-phase.md` (new) is the edition-neutral contract (lanes, state, destination defaults, the three-question interview, report-format memory episodes, design spec, gates, repair, manifest, command reference) and `references/report-gates.md` (new) the defect glossary. Both `SKILL.md` editions (`packages/omo-senpi/skills/ulw-research`, `packages/shared-skills/skills/ulw-research`) replace the always-ask format gate and the python briefing one-liner with calls into the CLI; the new skill `AGENTS.md` documents the runtime.

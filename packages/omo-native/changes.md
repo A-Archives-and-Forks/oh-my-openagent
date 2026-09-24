@@ -1,3 +1,29 @@
+## 2026-09-24 - omo setup imports every OpenCode key an omo provider can serve, and names the real sign-in command (#8799)
+
+### What changed
+
+`bin/lib/provider-map.json` drops `excludedHostedGatewayIds` entirely and re-derives `builtinProviderIds` from the pinned engine's `builtinProviders()` verbatim (45 -> 47 ids: `opencode` and `opencode-go` were being filtered out). `providers` gains `zai-coding-plan -> zai`. Two new fields carry the OAuth story: `oauthProviderIds` (the engine's builtin OAuth providers, verbatim) and `oauthLogins` (a source OAuth id -> the omo provider to run `/login` for, for the ids that differ: `openai`/`openai-codex` -> `chatgpt-subscription`, `claude-sdk-oauth` -> `anthropic-subscription`, `kimi-for-coding` -> `kimi-coding`).
+
+`bin/lib/setup-guidance.js` is new and owns one thing: what to tell the user about credentials setup found but could not copy. It replaces the single closing line that told the user to run `omo auth` to sign in - `omo auth` has no sign-in, it only prints or checks credentials that already exist. Each skipped OAuth id now gets its own line naming the interactive command (run `omo`, then `/login <provider>`), and each unmapped API key gets the reason plus the next step (define the provider and baseUrl in the engine's `models.json`, then `/login` it). `bin/lib/setup-import.js` reads the provider map once in `runSetup` and threads it into the plan build and both printers, so the dry-run preview shows the same guidance the real run does.
+
+`test/setup-guidance.test.ts` is new (guidance rendering + the provider-id resolution table). `test/provider-map-registry.test.ts` drops its `EXCLUDED_BUILTIN_PROVIDER_IDS` filter, so the map is now pinned equal to the engine registry, and adds an OAuth-map contract test. `test/setup-import.test.ts` covers the wider import set end to end and asserts the `omo auth` string is gone.
+
+### Why
+
+An OpenCode user whose credentials were only `zai-coding-plan`, `opencode-go` and an OAuth login finished `omo setup` with zero usable providers and an instruction that goes nowhere. The engine evidence contradicts the exclusion: `opencode` ("OpenCode Zen", baseUrl `https://opencode.ai/zen`) and `opencode-go` ("OpenCode Go", `https://opencode.ai/zen/go`) are first-class builtin providers authenticating with the same `OPENCODE_API_KEY` the source file holds, and the engine's `zai` baseUrl (`https://api.z.ai/api/coding/paas/v4`) is byte-identical to models.dev's `zai-coding-plan` endpoint. None of the three can fail for an endpoint reason, so none of them belongs on an exclusion list; the list is now empty and gone. The downstream cost of under-importing is real: with only `kimi-coding` present, the default `quick` category has no model in its chain, so memory and `task(category=quick)` fail at runtime.
+
+### Why an extension could not handle it
+
+The provider map and the setup import flow are this package's own surface; the engine has no view of another harness's auth file.
+
+### Expected merge conflict zones
+
+`bin/lib/provider-map.json` (every senpi pin bump re-derives it), `bin/lib/setup-import.js` print helpers.
+
+Follow-up: the sign-in guidance is printed once, with the plan. `printCounts` used to repeat it, so a `--yes` run showed the same `/login` lines twice (pinned by two `setup-import.test.ts` cases, both RED at `Received: 2` before the change).
+
+Review follow-ups: an imported opencode key is written with `$` and `!` escaped (`$$`, `$!`). The engine resolves every stored `api_key` as a config value - a leading `!` runs a shell command, `$NAME` / `${NAME}` interpolate the environment - while opencode keeps the key verbatim, so a key holding either character was rewritten or executed at read time; `setup-import.test.ts` now resolves the stored value through the engine's own `resolveConfigValue` and expects the source bytes back. The OAuth guidance reads the engine's auth store and says a login is already done when an OAuth entry exists under the target provider, so a re-run no longer repeats `/login` for it. `provider-map-registry.test.ts` reads `ANTHROPIC_SUBSCRIPTION_PROVIDER_ID` from the engine instead of hand-typing it.
+
 ## 2026-09-23 - the comment-checker runtime dependency is removed again; the extension downloads the pinned release (#8247)
 
 ### What changed
