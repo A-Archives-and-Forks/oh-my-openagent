@@ -1,3 +1,11 @@
+## 2026-09-24 - omo update actually runs the detected package-manager command
+
+`omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
+
+The launcher now runs that command. `--dry-run` / `--print` keep the print-only answer. A successful run streams the manager output and prints `omo <before> -> <after> (engine: senpi ...)`. A failed run exits non-zero with the same command to retry by hand. Bun-global installs spawn `bun add -g omo-ai@beta` with `BUN_INSTALL` overlaid from the install prefix; npm stays `npm i -g omo-ai@beta`. The engine pin is untouched: the launcher never updates `@code-yeongyu/senpi` separately.
+
+Verification: `bun test packages/omo-native/test/self-update.test.ts packages/omo-native/test/launcher.test.ts` 54/0; `node --check` on the three JS files. Sandbox `BUN_INSTALL`: overlay the new updater onto `omo-ai@5.0.0-0.beta.88`, `omo update --dry-run` printed only and left 88, `omo update` streamed bun add and reported `omo 5.0.0-0.beta.88 -> 5.0.0-0.beta.89 (engine: senpi 2026.9.24)`.
+
 ## 2026-09-24 - "Restart to apply" actually applies: stale OpenCode plugin sandboxes are invalidated (#8801)
 
 OpenCode installs every npm plugin into `<opencode cache>/packages/<spec>/node_modules/<package>` and its `Npm.add()` returns that copy as soon as it exists, without re-resolving the tag. A moving tag (`@latest`, `@beta`, or a bare name, which OpenCode expands to `<name>@latest`) therefore froze at the first version installed: users on 4.19.4 never received 5.x, beta users stayed on the beta they first installed, and neither restarting OpenCode nor re-running the installer changed it - only deleting the sandbox by hand did. The update checker detected that sandbox (#4535 / #4318) and stopped claiming "Updated!", but its "Restart to apply" toast was still a promise nothing kept.
