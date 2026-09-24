@@ -174,13 +174,15 @@ omo update
 
 It prints the package-manager line it runs (`bun add -g omo-ai@beta`, or `npm i -g omo-ai@beta` for an npm install) and then the version change. `omo update --print` shows the line without running it. The engine is pinned by the package, so this is the only update path; there's no separate engine update.
 
-Removing the legacy package once you're settled:
+Removing the legacy package once you're settled: use the package manager that installed it. The `WARN legacy package` line of `omo doctor` names it and prints the exact command. For an npm install:
 
 ```bash
-bun remove -g oh-my-openagent
+npm uninstall -g oh-my-openagent
 ```
 
-bun leaves omo-ai's `omo` alone. npm doesn't: `npm uninstall -g oh-my-openagent` unlinks every bin name that package declared, including the `omo` that an npm-installed omo-ai now owns. If you go the npm route, run `npm i -g omo-ai@beta` right after it to put the command back. The installer prints this same warning when it repairs an npm-owned legacy `omo`.
+For a bun install, `bun remove -g oh-my-openagent`. The other manager's command doesn't help: `bun remove -g` on an npm install exits cleanly and leaves the package where it was. Use `oh-my-opencode` instead if that's the name you had.
+
+npm unlinks every bin name the package declared, including an `omo` that an npm-installed omo-ai now owns. If you installed omo-ai with npm too, run `npm i -g omo-ai@beta` right after the uninstall to put the command back. An omo-ai installed with bun keeps its `omo`. The installer prints the same warning when it installs omo-ai with npm after removing a legacy `omo`.
 
 Removing OmO Native itself:
 
