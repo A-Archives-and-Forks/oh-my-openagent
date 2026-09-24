@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { existsSync, statSync } from "node:fs"
 
-import { createNativeSkillSources } from "./native-skill-sources.mjs"
+import { createNativeSkillSources, sharedAssetSourceFor } from "./native-skill-sources.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(scriptDir, "..", "..", "..")
@@ -69,5 +69,20 @@ describe("createNativeSkillSources", () => {
         assert.ok(existsSync(sharedPath), `${name} shared asset must exist at ${sharedPath}`)
       }
     }
+  })
+})
+
+describe("sharedAssetSourceFor", () => {
+  test("#given a path inside a native skill's shared asset #when resolved #then it maps to the shared source it is overlaid from", () => {
+    const shipped = join(nativeSkillsRoot, "ulw-research", "references", "report-gates.md")
+    assert.equal(sharedAssetSourceFor(repoRoot, shipped), join(sharedSkillsRoot, "ulw-research", "references", "report-gates.md"))
+    const script = join(nativeSkillsRoot, "ulw-research", "scripts", "report-tools.mjs")
+    assert.equal(sharedAssetSourceFor(repoRoot, script), join(sharedSkillsRoot, "ulw-research", "scripts", "report-tools.mjs"))
+  })
+
+  test("#given a path outside every shared asset #when resolved #then it is null", () => {
+    assert.equal(sharedAssetSourceFor(repoRoot, join(nativeSkillsRoot, "ulw-research", "references", "missing.md")), null)
+    assert.equal(sharedAssetSourceFor(repoRoot, join(nativeSkillsRoot, "ulw-plan", "references", "report-gates.md")), null)
+    assert.equal(sharedAssetSourceFor(repoRoot, join(repoRoot, "omo-senpi", "README.md")), null)
   })
 })
