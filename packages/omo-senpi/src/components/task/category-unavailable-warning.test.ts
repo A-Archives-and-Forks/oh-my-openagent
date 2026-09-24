@@ -86,7 +86,7 @@ function plan(planner: ChildPlanner, category: string): PlanResolution {
 }
 
 const EXPECTED_TEXT =
-  'Category "quick" has no usable model: none of its fallback-chain providers are connected (kimi-coding, kimi-for-coding).'
+  'Category "quick" has no usable model: none of its fallback-chain providers are connected (kimi-coding, kimi-for-coding). Connect one with /login, or pin categories.quick.model in omo.json.'
 
 describe("createCategoryUnavailableWarningPlanner", () => {
   test("#given a dead-chain model_unavailable #when planned #then it notifies and sends the custom message", () => {

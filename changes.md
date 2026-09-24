@@ -1,3 +1,20 @@
+## 2026-09-24 - Kibitzer reports an unconfigured recall category as a configuration notice, not a repeating gate failure (#8811)
+
+When no connected provider serves the `memory.recall.category` chain, the Kibitzer sidecar refused to
+start and that refusal was retried, counted, and escalated as `✗ Kibitzer gate failed · start_failed ...
+after 3 consecutive failures`. The category pinning itself is deliberate policy and is unchanged; only
+the lifecycle and the presentation move: the two category refusals (`category_unavailable`,
+`beyond_category`) are classified as a permanent configuration state that never feeds the diagnostic
+streak, and the session gets exactly ONE `omo-kibitzer:unavailable` warning naming the category, its
+unconnected providers, and both fixes (`/login <provider>`, or pinning `categories.<name>.model` /
+`memory.recall.category` in `omo.json`). Transient refusals keep their retry/backoff behavior, and the
+sidecar re-resolves against the live registry on the next wake, so connecting a provider mid-session
+restores judging without a restart. The task tool's dead-chain warning gained the same fix sentence.
+Full file-level detail in `packages/omo-senpi/changes.md`; `docs/reference/configuration.md` documents the
+notice in the recall section.
+
+||||||| 60cfa1a41
+
 ## 2026-09-24 - omo setup carries OpenCode custom providers into the engine's models.json (#8836)
 
 An OpenCode power user's hand-configured `provider.<id>` block (an OpenAI- or Anthropic-compatible endpoint with `baseURL`, `apiKey` and a `models` map) used to vanish on migration: `omo setup` reported the id as `skipped-unmapped` and printed a placeholder `omo.json` template instead. Setup now reads those blocks from the same merged OpenCode config files the MCP/skills import reads, previews each one (`custom provider acme -> https://api.acme.example/v1 (openai-completions, from @ai-sdk/openai-compatible), 2 model(s): acme/acme-large, acme/acme-small; key: from opencode config apiKey`), and on consent writes the provider into `~/.omo/agent/models.json` and its key into `~/.omo/agent/auth.json`, so `acme/acme-large` is selectable in the first session. Existing ids in either file are never overwritten, both files get a timestamped backup, `--dry-run` previews only, and a second run changes nothing. The npm package decides the engine api (`@ai-sdk/openai-compatible` -> `openai-completions`, the default OpenCode itself uses when `npm` is absent; `@ai-sdk/anthropic` -> `anthropic-messages`; `@ai-sdk/openai` -> `openai-responses`); any other package, a provider id omo already serves, a baseURL that is not a fixed URL, and a provider with no usable model are reported by name and skipped. The placeholder template is no longer printed when a custom provider was found, and the credential stage no longer lists that id as `skipped-unmapped`. Details in `packages/omo-native/changes.md`.
@@ -119,7 +136,6 @@ Verification: `bun test packages/omo-opencode/src/cli packages/omo-opencode/src/
 ||||||| 530692bc0
 
 ||||||| 1f107edbe
-
 ## 2026-09-24 - installer replaces stale tui.json plugin entries instead of appending a second one (#8798)
 
 `packages/omo-opencode/src/cli/config-manager/add-tui-plugin-to-tui-config.ts` now normalizes `tui.json` the way `add-plugin-to-opencode-config.ts` normalizes `opencode.json`: every entry belonging to this plugin is dropped before the entry being installed is appended, so re-running the installer over a config an older installer wrote leaves exactly one entry. Before this, only the `<pkg>/tui` subpath form was filtered, so a 4.19.4-era `tui.json` (`["oh-my-openagent@latest"]`) kept that entry alongside the freshly written spec and the TUI loaded the plugin twice from two different specs.
