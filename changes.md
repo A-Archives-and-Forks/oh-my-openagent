@@ -1,3 +1,13 @@
+## 2026-09-24 - installer replaces stale tui.json plugin entries instead of appending a second one (#8798)
+
+`packages/omo-opencode/src/cli/config-manager/add-tui-plugin-to-tui-config.ts` now normalizes `tui.json` the way `add-plugin-to-opencode-config.ts` normalizes `opencode.json`: every entry belonging to this plugin is dropped before the entry being installed is appended, so re-running the installer over a config an older installer wrote leaves exactly one entry. Before this, only the `<pkg>/tui` subpath form was filtered, so a 4.19.4-era `tui.json` (`["oh-my-openagent@latest"]`) kept that entry alongside the freshly written spec and the TUI loaded the plugin twice from two different specs.
+
+`isOmoManagedTuiEntry()` in `packages/omo-opencode/src/cli/doctor/checks/tui-plugin-config.ts` is the single predicate for "this entry is ours": bare package name, any tag/version spec, the legacy `oh-my-opencode` name, the `<pkg>/tui` subpath, our `file:` dev entries, and the `file://.../(src|dist)/index.(ts|js)` source specs `addPluginToOpenCodeConfig` already treats as ours, in string or `[name, options]` tuple form. Keep the doctor predicates and this writer sharing it - a second copy is how the two files drifted in the first place. The writer now filters the raw `plugin` array instead of a string-only projection, so foreign tuple entries survive the rewrite (they were silently dropped before).
+
+`ensureTuiPluginEntry` reads a tuple-form server entry in `opencode.json` the same way `addPluginToOpenCodeConfig` does, so `[["oh-my-openagent", { ... }]]` still rewrites `tui.json`. A `plugin` field that is a foreign string is kept as one entry; a non-array non-string `plugin` value is left untouched (`malformed`). `checkTuiPluginConfig` warns when `tui.json` lists more than one managed entry (the leftover `["oh-my-openagent@latest", "oh-my-openagent"]` shape) and passes after the writer collapses it to one.
+
+||||||| 530692bc0
+
 ## 2026-09-24 - agent-model-matching guide follows the OmO Native routing tables (#8805)
 
 `docs/guide/agent-model-matching.md` was re-checked against `packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`, `packages/senpi-task/src/category/{fallback-chains,builtins,*-categories}.ts`, `packages/senpi-task/src/agents/builtin/{fallback-chains,code-reviewer,gate-reviewer,qa-executor}.ts` and Senpi's `prompt-preset/presets.ts` `resolvePresetName`.
@@ -10,7 +20,6 @@
 - The retired `deep` category name is replaced by `deep-low` / `deep-high`.
 
 `docs/guide/overview.md` and `docs/guide/installation.md` drop the GPT-5.6 Sol recommendation, the retired Capable / Deep work profile names and the "quick runs on Kimi high-speed" claim.
-
 ## 2026-09-24 - ulw-research deliverable contract: lane interview, static gates, outcome manifest, bounded repair (#8611)
 
 `packages/shared-skills/skills/ulw-research/scripts/` (new) is a zero-dependency Node CLI, `report-tools.mjs`, dispatching `check`, `layout-probe`, `repair decide`, `outcome init|set|gate|render|state|verify|finish|briefing`, `format-extract` and `--help --json` (exit 0 pass, 1 semantic failure, 2 usage or IO). Modules: `contracts.mjs` (the defect-code table, the only place severities live; enums; manifest and repair-state validators), `outcome.mjs`, `repair-tracker.mjs`, `html-lite.mjs` + `entities.mjs`, `css-lite.mjs`, `design-spec.mjs`, `gates-static.mjs` composing `gates-text.mjs` / `gates-figures.mjs` / `gates-structure.mjs` (G1-G15), `layout-probe.mjs` + `gates-layout.mjs` (L1-L5; the probe is evaluated by the orchestrator through the browser skill's owned headless engine), `format-extract.mjs` + `format-extract-css.mjs`, `cli-support.mjs`, `entry-guard.mjs`, `report-tools-commands.mjs`; every module is at most 250 lines with a co-located bun test. `references/deliverable-phase.md` (new) is the edition-neutral contract (lanes, state, destination defaults, the three-question interview, report-format memory episodes, design spec, gates, repair, manifest, command reference) and `references/report-gates.md` (new) the defect glossary. Both `SKILL.md` editions (`packages/omo-senpi/skills/ulw-research`, `packages/shared-skills/skills/ulw-research`) replace the always-ask format gate and the python briefing one-liner with calls into the CLI; the new skill `AGENTS.md` documents the runtime.
