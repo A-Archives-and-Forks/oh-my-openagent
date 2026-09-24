@@ -1,3 +1,7 @@
+## 2026-09-24 - native install resolves a POSIX PATH with POSIX rules on any host; Windows-only tests declare their platform
+
+`resolveOmoBinEnvironment` (`packages/omo-opencode/src/cli/install-native/legacy-omo-bin.ts`) split PATH with `node:path`'s host `delimiter` and joined the bun bin dir with the host `join` whenever the described platform was not Windows, so resolving a POSIX environment on a Windows host produced `["/usr/local/bin:/usr/bin"]` and `\\home\\dev\\.bun\\bin` (dev CI `test (windows-latest, 1/2)` red since #8793). It now uses `posix`/`win32` rules chosen by the described platform. `repair-legacy-omo-bin.test.ts` skips the chmod-based write-denial case on Windows (mode bits do not deny unlink there), and `packages/omo-native/test/doctor-migration.test.ts` skips the relative-PATH-entry case when the checkout and the temp dir sit on different roots (Windows runners: `relative()` returns an absolute path across drives).
+
 ## 2026-09-24 - Kibitzer reports an unconfigured recall category as a configuration notice, not a repeating gate failure (#8811)
 
 When no connected provider serves the `memory.recall.category` chain, the Kibitzer sidecar refused to
