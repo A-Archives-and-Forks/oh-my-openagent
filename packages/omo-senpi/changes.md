@@ -1,3 +1,8 @@
+## 2026-09-24 - onboarding lane 2 stops hand-moving global OpenCode MCP servers into project files
+
+`skills/onboarding/SKILL.md` lane 2 (migration help) now tells the guide that global OpenCode MCP servers and global OpenCode skills are `omo setup`'s job: it imports them into `~/.omo/agent/mcp.json` and `~/.omo/agent/skills/`, consent-gated, converted, and without overwriting an existing name, previewable with `omo setup --dry-run`. The migration-plan sentence splits "which MCP servers move to the project `.mcp.json`" into what setup carries over globally and what is genuinely project-only.
+
+Written because the old wording produced the bug it was meant to prevent: the lane moved a GLOBAL server into the PROJECT `.mcp.json`, and the next session outside that project saw nothing. Implementation detail lives in `packages/omo-native/changes.md`.
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the
