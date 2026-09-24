@@ -1,3 +1,7 @@
+## Task-category coverage for omo doctor and omo setup (#8858)
+
+`category/coverage.ts` (new): `resolveCategoryCoverage(config, registry)` returns the usable categories (`resolveAvailableCategoryNames`) and, per unusable one, the chain providers with no model in the registry (the resolver's `missingChainProviders`, now exported with `parseAvailableModels`). Disabled categories are neither; a registry without a model list throws. Exported from `category/index.ts` and as `@oh-my-opencode/senpi-task/category-coverage`. omo#8857.
+
 ## unspecified-high GLM rung uses engine `zai` / `zai-coding-cn` (#8827)
 
 `category/fallback-chains.ts`: the `glm-5.3` rung is `zai`, `zai-coding-cn`, `opencode-go` instead of OpenCode's `zai-coding-plan`. This file is the native category source (omo-senpi imports it); `packages/model-core/src/category-model-requirements.ts` stays the OpenCode table. omo#8824.
