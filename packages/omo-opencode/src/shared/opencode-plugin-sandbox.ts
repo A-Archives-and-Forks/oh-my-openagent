@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
 
 import { log } from "./logger"
@@ -105,12 +105,40 @@ export function removePluginSandbox(dir: string, cacheDir: string): boolean {
   return true
 }
 
-/** Requests a refresh of our sandbox; the next exit handler that sees it removes the sandbox. */
-export function markPluginSandboxStale(dir: string, cacheDir: string): boolean {
+/**
+ * Requests a refresh of our sandbox; the next exit handler that sees it
+ * removes the sandbox. The marker records the requesting pid and, once an
+ * exit handler could not act on it, why - so the next start can say so
+ * instead of promising "restart to apply" forever.
+ */
+export function markPluginSandboxStale(
+  dir: string,
+  cacheDir: string,
+  reason = "",
+  pid: number = process.pid,
+): boolean {
   if (!isPluginSandboxDir(dir, cacheDir)) return false
   if (!existsSync(dir)) return false
-  writeFileSync(join(dir, REFRESH_MARKER_FILE), "")
+  writeFileSync(join(dir, REFRESH_MARKER_FILE), `${pid}\n${reason}`)
   return true
+}
+
+/**
+ * Why a refresh requested before this process started was not applied, or
+ * null when there is nothing to report: no request, a request from this
+ * process, or one from another window that is still running and will apply
+ * it when it exits.
+ */
+export function describeUnappliedPluginSandboxRefresh(dir: string, pid: number = process.pid): string | null {
+  const markerPath = join(dir, REFRESH_MARKER_FILE)
+  if (!existsSync(markerPath)) return null
+  const [pidLine = "", ...reasonLines] = readFileSync(markerPath, "utf-8").split("\n")
+  const requester = Number(pidLine)
+  if (requester === pid) return null
+  const reason = reasonLines.join("\n").trim()
+  if (reason) return reason
+  if (Number.isInteger(requester) && requester > 0 && isProcessAlive(requester)) return null
+  return "the refresh requested earlier did not run when OpenCode exited"
 }
 
 export function isPluginSandboxMarkedStale(dir: string): boolean {

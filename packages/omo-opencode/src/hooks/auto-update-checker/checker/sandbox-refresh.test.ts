@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -168,6 +168,54 @@ describe("sandbox refresh with several OpenCode processes", () => {
 
     // then
     expect(existsSync(sandboxDir)).toBe(false)
+  })
+})
+
+describe("sandbox refresh that did not complete", () => {
+  test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "#given the exit-time removal fails #when the next session schedules the refresh #then it learns the last restart did not apply it",
+    () => {
+      // given - a read-only packages dir stands in for a Windows file lock
+      // (the failing session is a live pid, so only the recorded reason can surface it)
+      const cacheDir = tempDir()
+      const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+      const previousSession = exitRecorder()
+      expect(scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit: previousSession.onExit, cacheDir, pid: process.ppid })).toBeNull()
+      const packagesDir = getPluginSandboxRoot(cacheDir)
+      chmodSync(packagesDir, 0o555)
+      try {
+        previousSession.callbacks[0]?.()
+      } finally {
+        chmodSync(packagesDir, 0o755)
+      }
+      expect(existsSync(join(sandboxDir, "node_modules", "oh-my-openagent"))).toBe(true)
+
+      // when - the next session detects the same update
+      const unapplied = scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit: exitRecorder().onExit, cacheDir, pid: 4_194_306 })
+
+      // then
+      expect(unapplied).not.toBeNull()
+    },
+  )
+
+  test("#given a refresh requested by a session that ended without running its exit handler #when scheduling again #then it is reported", () => {
+    // given - pid 2^22+1 is above every platform's pid_max, so it is never alive
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+    markPluginSandboxStale(sandboxDir, cacheDir, "", 4_194_305)
+
+    // when / then
+    expect(scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit: exitRecorder().onExit, cacheDir })).not.toBeNull()
+  })
+
+  test("#given a refresh requested by another window that is still open #when scheduling again #then there is nothing to report", () => {
+    // given - the requester is this test runner's parent, which is alive
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@beta")
+    markPluginSandboxStale(sandboxDir, cacheDir, "", process.ppid)
+
+    // when / then
+    expect(scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit: exitRecorder().onExit, cacheDir })).toBeNull()
   })
 })
 

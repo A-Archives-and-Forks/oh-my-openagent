@@ -67,9 +67,10 @@ type BackgroundUpdateCheckDeps = {
    * Schedules removal of an OpenCode-managed plugin sandbox so the next
    * OpenCode start re-installs the channel's current version. Deferred to
    * process exit by default so the running session keeps its files (see
-   * checker/sandbox-refresh.ts).
+   * checker/sandbox-refresh.ts). Returns why an earlier refresh was not
+   * applied, or null.
    */
-  scheduleSandboxRefresh: (sandboxDir: string) => void
+  scheduleSandboxRefresh: (sandboxDir: string) => string | null
 }
 
 type BackgroundUpdateCheckRunner = (
@@ -103,6 +104,10 @@ const defaultDeps: BackgroundUpdateCheckDeps = {
 
 function getPinnedVersionToastMessage(latestVersion: string): string {
   return `Update available: ${latestVersion} (version pinned, update manually)`
+}
+
+function getUnappliedRefreshToastMessage(latestVersion: string, reason: string, sandboxDir: string): string {
+  return `v${latestVersion} available, but the last restart could not apply it (${reason}). Close every OpenCode window and start it again; if this notice returns, delete ${sandboxDir} (known issue #5367).`
 }
 
 /**
@@ -250,10 +255,14 @@ export function createBackgroundUpdateCheckRunner(
     // a missing sandbox and installs the channel's current version.
     const moduleWorkspace = deps.getModuleHostingWorkspace()
     if (isOpenCodeManagedSandbox(moduleWorkspace, getCacheWorkspaceDir(deps), deps.getOpenCodeConfigPaths({ binary: "opencode" }).configDir)) {
-      if (moduleWorkspace) {
-        deps.scheduleSandboxRefresh(moduleWorkspace)
-      }
-      await deps.showUpdateAvailableToast(ctx, latestVersion, getToastMessage)
+      const unapplied = moduleWorkspace ? deps.scheduleSandboxRefresh(moduleWorkspace) : null
+      await deps.showUpdateAvailableToast(
+        ctx,
+        latestVersion,
+        unapplied && moduleWorkspace
+          ? () => getUnappliedRefreshToastMessage(latestVersion, unapplied, moduleWorkspace)
+          : getToastMessage,
+      )
       deps.log(
         `[auto-update-checker] OpenCode-managed sandbox detected (${moduleWorkspace}); sandbox refresh scheduled for exit. See #4318/#5367.`,
       )

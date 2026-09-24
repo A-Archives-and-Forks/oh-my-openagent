@@ -5,6 +5,7 @@ import { log } from "../../../shared/logger"
 import { getOpenCodeCacheDir } from "../../../shared/data-path"
 import {
   acquirePluginSandboxLease,
+  describeUnappliedPluginSandboxRefresh,
   hasOtherLivePluginSandboxLease,
   isPluginSandboxDir,
   isPluginSandboxMarkedStale,
@@ -72,6 +73,7 @@ function refreshMarkedSandbox(sandboxDir: string, cacheDir: string, pid: number)
     releasePluginSandboxLease(sandboxDir, pid)
     if (!isPluginSandboxMarkedStale(sandboxDir)) return
     if (hasOtherLivePluginSandboxLease(sandboxDir, pid)) {
+      markPluginSandboxStale(sandboxDir, cacheDir, "another OpenCode window was still open", pid)
       log(`[auto-update-checker] Another OpenCode process still runs from ${sandboxDir}; the last one to exit refreshes it`)
       return
     }
@@ -84,6 +86,13 @@ function refreshMarkedSandbox(sandboxDir: string, cacheDir: string, pid: number)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     log(`[auto-update-checker] Failed to remove OpenCode plugin sandbox ${sandboxDir}: ${message}`)
+    // The removal is atomic, so the sandbox and its marker are intact; record
+    // why, and the next start reports it instead of repeating "restart".
+    try {
+      markPluginSandboxStale(sandboxDir, cacheDir, `could not remove it: ${message}`, pid)
+    } catch (markError) {
+      log(`[auto-update-checker] Could not record the failed refresh of ${sandboxDir}:`, markError)
+    }
   }
 }
 
@@ -117,20 +126,29 @@ export function trackLoadedPluginSandbox(moduleUrl: string = import.meta.url): v
   }
 }
 
-export function scheduleOpenCodeSandboxRefreshOnExit(sandboxDir: string, deps: SandboxRefreshDeps = {}): void {
+/**
+ * Requests the exit-time refresh of `sandboxDir`. Returns why an earlier
+ * request was not applied (see `describeUnappliedPluginSandboxRefresh`), so the
+ * caller can tell the user a plain restart will not help; null otherwise.
+ */
+export function scheduleOpenCodeSandboxRefreshOnExit(sandboxDir: string, deps: SandboxRefreshDeps = {}): string | null {
   const cacheDir = deps.cacheDir ?? getOpenCodeCacheDir()
   if (!isPluginSandboxDir(sandboxDir, cacheDir)) {
     log(`[auto-update-checker] Not an OpenCode plugin sandbox, leaving it alone: ${sandboxDir}`)
-    return
+    return null
   }
 
+  const pid = deps.pid ?? process.pid
+  let unapplied: string | null
   try {
-    markPluginSandboxStale(sandboxDir, cacheDir)
+    unapplied = describeUnappliedPluginSandboxRefresh(sandboxDir, pid)
+    markPluginSandboxStale(sandboxDir, cacheDir, "", pid)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     log(`[auto-update-checker] Could not request a refresh of OpenCode plugin sandbox ${sandboxDir}: ${message}`)
-    return
+    return `could not request it: ${message}`
   }
   trackPluginSandbox(sandboxDir, { ...deps, cacheDir })
   log(`[auto-update-checker] Scheduled OpenCode plugin sandbox refresh on exit: ${sandboxDir}`)
+  return unapplied
 }

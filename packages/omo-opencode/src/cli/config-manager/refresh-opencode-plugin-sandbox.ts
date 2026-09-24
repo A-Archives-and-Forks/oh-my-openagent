@@ -38,6 +38,8 @@ export interface RefreshOpenCodePluginSandboxesResult {
   readonly removed: readonly string[]
   /** Sandboxes a running OpenCode still uses; they refresh when it exits. */
   readonly deferred: readonly string[]
+  /** Sandboxes that could not be removed; the caller must tell the user. */
+  readonly failed: readonly { readonly dir: string; readonly message: string }[]
 }
 
 type ConfigShape = {
@@ -70,6 +72,7 @@ export function refreshOpenCodePluginSandboxes(
 
   const removed: string[] = []
   const deferred: string[] = []
+  const failed: { dir: string; message: string }[] = []
   for (const entry of readPluginEntries(configDir)) {
     const sandboxDir = getPluginSandboxDir(cacheDir, entry)
     if (!sandboxDir) continue
@@ -84,9 +87,10 @@ export function refreshOpenCodePluginSandboxes(
       log(`[install] Removed stale OpenCode plugin sandbox: ${sandboxDir}`)
     } catch (error) {
       if (!(error instanceof Error)) throw error
+      failed.push({ dir: sandboxDir, message: error.message })
       log(`[install] Failed to remove OpenCode plugin sandbox ${sandboxDir}: ${error.message}`)
     }
   }
 
-  return { removed, deferred }
+  return { removed, deferred, failed }
 }

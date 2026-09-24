@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -137,4 +137,29 @@ describe("refreshOpenCodePluginSandboxes", () => {
     expect(result.deferred).toEqual([sandbox])
     expect(existsSync(join(sandbox, "node_modules", "oh-my-openagent"))).toBe(true)
   })
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "#given the sandbox cannot be removed #when the installer refreshes #then the failure is returned for the installer to print",
+    () => {
+      // given
+      const { configDir, cacheDir } = tempRoot()
+      writeOpenCodeConfig(configDir, ["oh-my-openagent@beta"])
+      const sandbox = seedSandbox(cacheDir, "oh-my-openagent@beta")
+      const packagesDir = join(cacheDir, "packages")
+      chmodSync(packagesDir, 0o555)
+
+      // when
+      let result: ReturnType<typeof refreshOpenCodePluginSandboxes>
+      try {
+        result = refreshOpenCodePluginSandboxes({ configDir, cacheDir })
+      } finally {
+        chmodSync(packagesDir, 0o755)
+      }
+
+      // then
+      expect(result.removed).toEqual([])
+      expect(result.failed.map((failure) => failure.dir)).toEqual([sandbox])
+      expect(existsSync(join(sandbox, "node_modules", "oh-my-openagent"))).toBe(true)
+    },
+  )
 })

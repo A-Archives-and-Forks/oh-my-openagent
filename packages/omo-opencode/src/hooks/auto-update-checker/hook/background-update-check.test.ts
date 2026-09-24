@@ -199,6 +199,7 @@ describe("createBackgroundUpdateCheckRunner — sandbox refresh + strictly-newer
     isPinned?: boolean
     entry?: string
     pinnedVersion?: string | null
+    unappliedRefresh?: string
   }) {
     const configDir = "/config"
     const sandboxDir = "/cache/packages/oh-my-openagent@beta"
@@ -225,7 +226,7 @@ describe("createBackgroundUpdateCheckRunner — sandbox refresh + strictly-newer
       showUpdateAvailableToast: mock(async () => {}),
       showAutoUpdatedToast: mock(async () => {}),
       getModuleHostingWorkspace: mock(() => sandboxDir),
-      scheduleSandboxRefresh: mock(() => {}),
+      scheduleSandboxRefresh: mock((): string | null => overrides.unappliedRefresh ?? null),
     }
     return { deps, sandboxDir }
   }
@@ -291,5 +292,24 @@ describe("createBackgroundUpdateCheckRunner — sandbox refresh + strictly-newer
     // then
     expect(deps.showUpdateAvailableToast).not.toHaveBeenCalled()
     expect(deps.scheduleSandboxRefresh).not.toHaveBeenCalled()
+  })
+
+  test("#given the last restart could not apply the refresh #when the background check runs #then the toast says so instead of repeating restart to apply", async () => {
+    // given
+    const { deps, sandboxDir } = createSandboxDeps({
+      cachedVersion: "5.0.0-beta.85",
+      latestVersion: "5.0.0-beta.89",
+      unappliedRefresh: "could not remove it: EBUSY",
+    })
+    const restartToApply = (_isUpdate: boolean, latest?: string) => `v${latest} available. Restart to apply.`
+    const runner = createBackgroundUpdateCheckRunner(deps as Parameters<typeof createBackgroundUpdateCheckRunner>[0])
+
+    // when
+    await runner(createCtx(), /* autoUpdate */ true, restartToApply)
+
+    // then - the message points at the directory to remove
+    const [, , message] = deps.showUpdateAvailableToast.mock.calls[0] as unknown as [unknown, string, (isUpdate: boolean, latest?: string) => string]
+    expect(message).not.toBe(restartToApply)
+    expect(message(true, "5.0.0-beta.89")).toContain(sandboxDir)
   })
 })
