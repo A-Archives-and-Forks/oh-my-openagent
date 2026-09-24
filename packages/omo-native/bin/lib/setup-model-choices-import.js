@@ -15,7 +15,7 @@
  * A key either file already has, in the harness block or the shared base, is never overwritten.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { timestamp } from "./auth-store.js"
@@ -130,7 +130,9 @@ function writeText(target, text) {
   const destination = target.text !== undefined ? realpathSync(target.path) : target.path
   const temporary = `${destination}.tmp-${process.pid}`
   try {
-    writeFileSync(temporary, text, "utf8")
+    writeFileSync(temporary, text, { encoding: "utf8", mode: 0o600 })
+    // The edited file keeps its own permissions: a 0600 config must not come back world-readable.
+    if (target.text !== undefined) chmodSync(temporary, statSync(destination).mode & 0o7777)
     renameSync(temporary, destination)
   } finally {
     if (existsSync(temporary)) unlinkSync(temporary)

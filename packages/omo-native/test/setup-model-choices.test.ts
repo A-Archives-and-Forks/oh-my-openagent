@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -163,6 +163,23 @@ describe("omo setup model choices", () => {
       expect(readdirSync(join(item.home, ".omo")).filter((name) => name.startsWith("omo.jsonc.bak-"))).toHaveLength(1)
       expect(readFileSync(join(item.home, ".omo", readdirSync(join(item.home, ".omo")).find((name) => name.startsWith("omo.jsonc.bak-"))!), "utf8")).toBe(original)
       expect(stdout).toContain("model-choices-skipped-existing: default model, category quick")
+    })
+  })
+
+  describe("#given an omo.jsonc only its owner may read", () => {
+    test.skipIf(process.platform === "win32")("#when setup edits it #then it stays mode 0600", () => {
+      // given
+      const item = sandbox()
+      issueUser(item)
+      write(item.omoConfig, `{ "secret": "tok-$&-!x" }\n`)
+      chmodSync(item.omoConfig, 0o600)
+
+      // when
+      run(item, ["setup", "--yes"])
+
+      // then
+      expect(nativeView(item).config.categories?.quick?.model).toBe("opencode-go/glm-5.2")
+      expect(statSync(item.omoConfig).mode & 0o777).toBe(0o600)
     })
   })
 
