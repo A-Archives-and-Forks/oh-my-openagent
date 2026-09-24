@@ -1,3 +1,7 @@
+## ultrawork: the directive reports at handoffs instead of state changes only (#8847)
+
+`skills/ultrawork/SKILL.md` `# Role` now reads `Expert coding agent. Ship verified work; report at handoffs, not between them.` (was `... No process narration.`). In `# Output discipline`, the during-execution bullet `surface only state changes (existing tests read, scenario PASS/FAIL with evidence paths, reviewer verdict)` becomes one handoff block at every todo phase change, blocker, plan change, and before a long pass, written after weighing what the user asked and needs to know now: `Ask / wanted / For you (ledger, evidence paths, PASS/FAIL, reviewer verdict) / Now / Next`, with nothing between handoffs. The first-line and final-message bullets are unchanged. `src/components/ultrawork/generated-directive.ts` and `plugin/extensions/omo.js` are regenerated (`embed-directive.mjs`, `build-extension.mjs`). The forbidden-token guard passes because the new text uses no codex-only tool names. `TODO_FANOUT_REMINDER` stays as it is because it already fits the handoff contract.
+
 ## memory/kibitzer: a recall category with no connected provider is ONE actionable notice, never a gate-failure streak
 
 A user whose only connected provider sits outside the `memory.recall.category` chain (the QA report: a
