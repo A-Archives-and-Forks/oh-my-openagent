@@ -6,6 +6,8 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
 // no such providers):
 //   - kimi rungs carry BOTH provider ids ("kimi-coding" senpi registry id and the "kimi-for-coding"
 //     models.dev/opencode id); model-core carries "kimi-for-coding" only.
+//   - glm rungs use engine ids "zai" and "zai-coding-cn". model-core carries OpenCode's
+//     "zai-coding-plan"; `omo setup` imports that key as "zai" (#8799, #8824).
 //   - every claude-* rung is headed by "anthropic-subscription", senpi's Claude subscription lane
 //     (Claude Pro/Max). It serves the same model ids as "anthropic", so a machine that is logged in
 //     there AND holds an OpenCode Zen key must not be routed to the metered `opencode/claude-*` lane
@@ -129,7 +131,7 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
       model: "claude-opus-5-5",
       variant: "medium",
     },
-    { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
+    { providers: ["zai", "zai-coding-cn", "opencode-go"], model: "glm-5.3", variant: "max" },
     {
       providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"],
       model: "kimi-k3",

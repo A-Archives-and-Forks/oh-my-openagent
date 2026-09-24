@@ -1,3 +1,7 @@
+## unspecified-high GLM rung uses engine `zai` / `zai-coding-cn` (#8827)
+
+`category/fallback-chains.ts`: the `glm-5.3` rung is `zai`, `zai-coding-cn`, `opencode-go` instead of OpenCode's `zai-coding-plan`. This file is the native category source (omo-senpi imports it); `packages/model-core/src/category-model-requirements.ts` stays the OpenCode table. omo#8824.
+
 ## plan-reviewer checks the affected user, their experience, the problem solved, and approach fitness; plan-consultant reports ideal-state gaps
 
 `agents/builtin/plan-reviewer.ts`: the purpose becomes two questions - does the plan reach the ideal
