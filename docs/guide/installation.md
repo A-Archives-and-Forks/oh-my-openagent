@@ -20,7 +20,7 @@ Both `lazycodex-ai` and `lazycodex` are shipped bin aliases that default to the 
 
 - Already use OpenCode, or want the most-tested path? Choose **Ultimate**: `bunx oh-my-openagent install`.
 - Already use Codex CLI? Choose **Light**: `npx lazycodex-ai install`.
-- Want one command without installing a host first? Choose **OmO Native (beta)**: `bunx oh-my-openagent install --platform=native`.
+- Want one command without installing a host first? Choose **OmO Native (beta)**: `bun add -g omo-ai@beta`.
 
 Ultimate and Light are plugins that load into a host you already run. OmO Native is standalone: it ships a pinned senpi engine with OMO built in.
 
@@ -165,14 +165,14 @@ The OpenCode comment-checker hook downloads its pinned binary directly from [Git
 
 OmO Native ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi engine with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup.
 
-It is beta-channel only. The installer picks the right package manager, clears a stale global `omo` left by a pre-rename release, and checks afterwards that the `omo` your PATH resolves is the one `omo-ai` owns:
+It is beta-channel only. The tag is mandatory:
 
 ```bash
-bunx oh-my-openagent install --platform=native
+bun add -g omo-ai@beta
 omo
 ```
 
-The raw install is `bun add -g omo-ai@beta` (or `npm i -g omo-ai@beta` without bun), and the tag is mandatory: a bare `bun add -g omo-ai` fails with ETARGET on purpose, because every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
+A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. Without bun, `npm i -g omo-ai@beta` works too. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
 **Where omo keeps its state.** OmO Native stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout
@@ -182,7 +182,7 @@ without copying it, so an older standalone install keeps working. Set `OMO_CODIN
 override the location; the legacy `SENPI_*` and `PI_*` variables are still read when the `OMO_*`
 one is unset.
 
-**Older machines: the global `omo` name is already taken.** oh-my-openagent/oh-my-opencode 4.19.4 and earlier ship their own global `omo` command. A raw `npm i -g omo-ai@beta` on such a machine fails with EEXIST, and a raw `bun add -g omo-ai@beta` succeeds while the old command keeps winning on PATH, so `omo --version` still prints `4.19.4`. `bunx oh-my-openagent install --platform=native` handles it: it removes that one stale `omo` entry (the old package and its other commands stay), installs `omo-ai@beta`, and then verifies `omo --version`. If another `omo` still shadows it, the installer prints the exact `export PATH=...` line to fix the order.
+**Older machines: the global `omo` name is already taken.** oh-my-openagent/oh-my-opencode 4.19.4 and earlier ship their own global `omo` command. A raw `npm i -g omo-ai@beta` on such a machine fails with EEXIST, and a raw `bun add -g omo-ai@beta` succeeds while the old command keeps winning on PATH, so `omo --version` still prints `4.19.4`. `bunx oh-my-openagent@beta install --platform=native` (`npx` without bun; the `@beta` tag is required, `latest` is 4.19.4 and has no native platform) handles it: it removes that one stale `omo` entry (the old package and its other commands stay), installs `omo-ai@beta`, and then verifies `omo --version`. If another `omo` still shadows it, the installer prints the exact `export PATH=...` line to fix the order.
 
 ### First run: `omo setup`
 
