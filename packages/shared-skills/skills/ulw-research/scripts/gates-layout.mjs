@@ -31,7 +31,9 @@ function defect(code, selector, message) {
 	return { code, severity, selector, line: null, message, hint }
 }
 
-// L1: the largest spill of the child rect past any side of its parent rect.
+// L1: the largest spill of the child rect past any side of its parent rect. A parent that scrolls
+// on the spill axis makes it intentional scrolling (the advisory scroll container); a parent that
+// clips on that axis hides the spilled content (text clipped).
 function checkOverflow(box) {
 	if (!box.parentRect || OUT_OF_FLOW.has(box.position)) return null
 	const c = box.rect
@@ -44,6 +46,13 @@ function checkOverflow(box) {
 	].map(([side, px]) => [side, r1(px)])
 	const [side, px] = sides.reduce((worst, entry) => (entry[1] > worst[1] ? entry : worst))
 	if (px <= OVERFLOW_PX) return null
+	const parentMode = box.parentOverflow?.[side === "left" || side === "right" ? "x" : "y"]
+	if (SCROLLING.has(parentMode)) {
+		return defect("layout_scroll_container", box.selector, `${box.tag} is ${px}px wider than ${box.parentSelector}, which scrolls (overflow: ${parentMode})`)
+	}
+	if (CLIPPING.has(parentMode)) {
+		return defect("layout_text_clipped", box.selector, `${box.tag} spills ${px}px past the ${side} edge of ${box.parentSelector}, which clips it (overflow: ${parentMode})`)
+	}
 	return defect("layout_overflow", box.selector, `${box.tag} spills ${px}px past the ${side} edge of ${box.parentSelector}`)
 }
 

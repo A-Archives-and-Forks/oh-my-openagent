@@ -215,3 +215,22 @@ describe("checkLayout on the fixture sample", () => {
 		expect(result.summary).not.toContain("truncated")
 	})
 })
+
+describe("checkLayout L1 inside a scrolling or clipping parent", () => {
+	const wideTable = (parentOverflow?: { x: string; y: string }) =>
+		box({ selector: `${PARENT} > div > table`, tag: "table", rect: { x: 0, y: 10, w: 816, h: 200 }, parentSelector: `${PARENT} > div`, ...(parentOverflow ? { parentOverflow } : {}) })
+
+	test("#given a table spilling 216px inside a parent with overflow-x auto #when checked #then it is the advisory scroll container, not an overflow", () => {
+		const result = checkLayout(probe([wideTable({ x: "auto", y: "visible" })]))
+		expect(codes(result)).toEqual(["layout_scroll_container"])
+		expect(result.defects[0]?.severity).toBe(DEFECT_CODES.layout_scroll_container.severity)
+	})
+
+	test("#given the same spill inside a parent with overflow-x hidden #when checked #then the content is reported clipped", () => {
+		expect(codes(checkLayout(probe([wideTable({ x: "hidden", y: "visible" })])))).toEqual(["layout_text_clipped"])
+	})
+
+	test("#given the same spill with no parentOverflow recorded #when checked #then it stays a layout_overflow", () => {
+		expect(codes(checkLayout(probe([wideTable()])))).toEqual(["layout_overflow"])
+	})
+})

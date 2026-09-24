@@ -68,6 +68,7 @@ export function buildProbeSource({ cap = 400, root = "main, article" } = {}) {
 		const box = {
 			selector: path(el), tag: el.tagName.toLowerCase(), rect: rect(el),
 			parentSelector: parent ? path(parent) : null, parentRect: parent ? rect(parent) : null,
+			parentOverflow: parent ? { x: getComputedStyle(parent).overflowX, y: getComputedStyle(parent).overflowY } : null,
 			scroll: { sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight },
 			overflow: { x: cs.overflowX, y: cs.overflowY }, position: cs.position,
 			textLen: (el.textContent || "").trim().length,
