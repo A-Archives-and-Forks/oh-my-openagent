@@ -15,7 +15,7 @@ Sections:
 
 ## Before you start
 
-oh-my-openagent and oh-my-opencode 4.19.4 and earlier install their own global command named `omo`. That's the OpenCode-edition CLI, not the standalone omo, and it occupies the name the new package needs. Check what `omo` is on your machine right now:
+Late 4.x releases of oh-my-openagent and oh-my-opencode, up to and including 4.19.4, install their own global command named `omo`. That's the OpenCode-edition CLI, not the standalone omo, and it occupies the name the new package needs. Check what `omo` is on your machine right now:
 
 ```bash
 omo --version
@@ -92,7 +92,7 @@ Each refused item is named in the summary with its reason and the fix.
 - An MCP server whose config uses command substitution (`$(...)`, or a value starting with `!`). The engine rejects any such string and one bad value fails the whole `mcp.json`, so the server is left out. Resolve the value to a literal or a `${NAME}` environment reference and add the server by hand.
 - An MCP server using a `{file:...}` placeholder, or an `{env:...}` name that isn't a plain identifier. omo has no spelling for those; put the value in an environment variable and reference it as `${NAME}`.
 - A skill directory with no `SKILL.md` at its top level, or a `SKILL.md` without a `description` in its frontmatter. The engine wouldn't load it, so copying it would report an import the next session never shows.
-- A custom provider that uses an AI SDK package other than the three above, has no fixed base URL, or declares no usable model.
+- A custom provider that uses an AI SDK package other than the three above, has no fixed base URL (or, on `@ai-sdk/anthropic`, a base URL that doesn't end in `/v1`), has a header with a `{file:...}` placeholder, or declares no usable model.
 
 ### What isn't carried, and why
 
