@@ -112,6 +112,47 @@ describe("omo setup opencode custom provider import", () => {
     })
   })
 
+  describe("#given custom providers whose models name their own npm package or url", () => {
+    describe("#when setup is accepted", () => {
+      test("#then the engine sends each model to the endpoint opencode would", () => {
+        const item = fixture()
+        opencode(item, {
+          provider: {
+            gw: {
+              options: { baseURL: "https://gw.example/v1" },
+              models: { "gpt-x": {}, "claude-x": { provider: { npm: "@ai-sdk/anthropic" } } },
+            },
+            ant: {
+              npm: "@ai-sdk/anthropic",
+              options: { baseURL: "https://ant.example/v1" },
+              models: { "claude-y": {}, "oai-y": { provider: { npm: "@ai-sdk/openai-compatible" } } },
+            },
+            split: {
+              api: "https://split.example/v1",
+              models: { a: {}, b: { provider: { api: "https://other.example/v1" } } },
+            },
+          },
+        })
+
+        const result = run(item, ["setup", "--yes"])
+        const config = ModelConfig.loadSync(join(item.agentDir, "models.json"))
+        const endpoints = ["ant", "gw", "split"].flatMap((id) => composeModelProvider(id, undefined, config, undefined).getModels()
+          .map((model: any) => [`${id}/${model.id}`, model.api, model.baseUrl]))
+
+        expect(result.status).toBe(0)
+        expect(config.getError()).toBeUndefined()
+        expect(endpoints).toEqual([
+          ["ant/claude-y", "anthropic-messages", "https://ant.example"],
+          ["ant/oai-y", "openai-completions", "https://ant.example/v1"],
+          ["gw/gpt-x", "openai-completions", "https://gw.example/v1"],
+          ["gw/claude-x", "anthropic-messages", "https://gw.example"],
+          ["split/a", "openai-completions", "https://split.example/v1"],
+          ["split/b", "openai-completions", "https://other.example/v1"],
+        ])
+      })
+    })
+  })
+
   describe("#given custom provider keys in every source opencode reads", () => {
     describe("#when setup is accepted", () => {
       test("#then auth.json holds one 0600 key per provider that the engine resolves to what opencode would send", async () => {

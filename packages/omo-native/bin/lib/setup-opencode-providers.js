@@ -87,12 +87,26 @@ function convertKey(id, entry, opencodeAuth, notices) {
   return undefined
 }
 
-function convertModel(providerId, providerApi, id, entry, notices) {
+// A URL still holding a placeholder has no engine spelling: the engine sends baseUrl verbatim.
+function fixedUrl(value) {
+  return value !== undefined && !/\{(?:env|file):/.test(value) ? value : undefined
+}
+
+function convertModel(provider, id, entry, notices) {
   const source = isPlainObject(entry) ? entry : {}
   const npm = text(source.provider?.npm)
-  const api = npm === undefined ? providerApi : API_BY_NPM[npm]
+  const api = npm === undefined ? provider.api : API_BY_NPM[npm]
   if (api === undefined) {
-    notices.push(`NOTICE opencode: model ${providerId}/${id} uses npm package ${npm}, which omo has no API adapter for; not imported`)
+    notices.push(`NOTICE opencode: model ${provider.id}/${id} uses npm package ${npm}, which omo has no API adapter for; not imported`)
+    return undefined
+  }
+  // OpenCode sends every model to `options.baseURL`, else to the model's own `provider.api`, else to
+  // the provider's `api` (provider.ts "extend database from config" and the SDK baseURL). A model
+  // whose protocol differs from its provider's needs that URL in its own engine spelling.
+  const baseURL = provider.optionsBaseURL ?? text(source.provider?.api) ?? provider.baseURL
+  const baseUrl = fixedUrl(baseURL) === undefined ? undefined : engineBaseUrl(api, baseURL)
+  if (baseUrl === undefined) {
+    notices.push(`NOTICE opencode: model ${provider.id}/${id} baseURL ${baseURL} is not a fixed URL omo's ${api} client can use; not imported`)
     return undefined
   }
   const input = Array.isArray(source.modalities?.input) ? source.modalities.input.filter((kind) => MODEL_INPUTS.has(kind)) : []
@@ -102,7 +116,8 @@ function convertModel(providerId, providerApi, id, entry, notices) {
     // `upstreamModelId` replaces the request model id the same way (model-runtime.js).
     ...(text(source.id) !== undefined && source.id !== id ? { upstreamModelId: source.id } : {}),
     ...(text(source.name) !== undefined ? { name: source.name } : {}),
-    ...(api !== providerApi ? { api } : {}),
+    ...(api !== provider.api ? { api } : {}),
+    ...(baseUrl !== provider.baseUrl ? { baseUrl } : {}),
     ...(typeof source.reasoning === "boolean" ? { reasoning: source.reasoning } : {}),
     ...(input.length > 0 ? { input } : {}),
     ...(positive(source.limit?.context) !== undefined ? { contextWindow: source.limit.context } : {}),
@@ -136,7 +151,7 @@ function convertProvider(id, entry, context) {
     return undefined
   }
   const baseURL = text(entry.options?.baseURL) ?? text(entry.api)
-  if (baseURL === undefined || /\{(?:env|file):/.test(baseURL)) {
+  if (fixedUrl(baseURL) === undefined) {
     notices.push(`NOTICE opencode: custom provider ${id} has no fixed baseURL; not imported - omo needs a literal endpoint URL`)
     return undefined
   }
@@ -151,7 +166,7 @@ function convertProvider(id, entry, context) {
     return undefined
   }
   const models = Object.entries(isPlainObject(entry.models) ? entry.models : {})
-    .map(([modelId, model]) => convertModel(id, api, modelId, model, notices))
+    .map(([modelId, model]) => convertModel({ id, api, baseURL, baseUrl, optionsBaseURL: text(entry.options?.baseURL) }, modelId, model, notices))
     .filter((model) => model !== undefined)
   if (models.length === 0) {
     notices.push(`NOTICE opencode: custom provider ${id} declares no models omo can use; not imported`)
