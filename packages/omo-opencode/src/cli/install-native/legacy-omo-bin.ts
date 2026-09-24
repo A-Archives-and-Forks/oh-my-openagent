@@ -1,5 +1,5 @@
 import { lstatSync, readFileSync, realpathSync } from "node:fs"
-import { delimiter, dirname, isAbsolute, join, win32 } from "node:path"
+import { dirname, isAbsolute, join, posix, win32 } from "node:path"
 
 export const NATIVE_OMO_PACKAGE = "omo-ai"
 export const LEGACY_OMO_BIN_PACKAGES: readonly string[] = ["oh-my-openagent", "oh-my-opencode", "lazycodex"]
@@ -48,17 +48,21 @@ export function resolveOmoBinEnvironment(input: {
   readonly homeDir: string
 }): OmoBinEnvironment {
   const isWindows = input.platform === "win32"
+  // PATH is parsed with the rules of the platform being described, not the host running this:
+  // `node:path`'s default delimiter/isAbsolute/join follow the host, so a POSIX environment
+  // resolved on a Windows host would split on `;` and join with `\`.
+  const pathRules = isWindows ? win32 : posix
   const pathValue = input.env["PATH"] ?? input.env["Path"] ?? ""
   // Only global bin dirs are in scope. A relative entry (`.`, `node_modules/.bin`) or a project's
   // `node_modules/.bin` (which `npx`/`bunx` put on PATH) holds a project dependency, not the global
   // `omo` the rename orphaned, and removing it would break that project.
   const pathDirectories = pathValue
-    .split(isWindows ? ";" : delimiter)
+    .split(pathRules.delimiter)
     .map((entry) => entry.trim())
-    .filter((entry) => (isWindows ? win32.isAbsolute(entry) : isAbsolute(entry)))
+    .filter((entry) => pathRules.isAbsolute(entry))
     .filter((entry) => !/(?:^|[\\/])node_modules[\\/]\.bin[\\/]?$/.test(entry))
   const bunInstall = input.env["BUN_INSTALL"]
-  const bunBinDir = bunInstall ? join(bunInstall, "bin") : join(input.homeDir, ".bun", "bin")
+  const bunBinDir = bunInstall ? pathRules.join(bunInstall, "bin") : pathRules.join(input.homeDir, ".bun", "bin")
   const extraDirectories = pathDirectories.includes(bunBinDir) ? [] : [bunBinDir]
   return { pathDirectories, extraDirectories, isWindows }
 }
