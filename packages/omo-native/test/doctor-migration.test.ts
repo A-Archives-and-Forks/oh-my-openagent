@@ -325,4 +325,56 @@ describe("omo doctor migration checks", () => {
       expect(lines[0]).toContain(`${join(linkBin, "omo")} (unknown owner)`)
     }, 30000)
   })
+
+  describe("#given a legacy omo reachable only through a relative PATH entry", () => {
+    test("#then that entry is not scanned", () => {
+      const sandbox = createSandbox()
+      installNpmLegacy(sandbox)
+      installBunNative(sandbox)
+
+      expect(report(sandbox, [relative(process.cwd(), sandbox.npmBin), sandbox.bunBin])).toEqual([])
+    })
+  })
+
+  describe("#given ~/.npmrc names an npm prefix under home that is not on PATH", () => {
+    test("#then the legacy package installed there is still reported", () => {
+      const sandbox = createSandbox()
+      installBunNative(sandbox)
+      const modules = join(sandbox.home, ".npm-global", "lib", "node_modules")
+      installPackage(modules, join(sandbox.home, ".npm-global", "bin"), "oh-my-openagent", "4.19.4", false)
+      writeFile(join(sandbox.home, ".npmrc"), "fund=false\nprefix = ~/.npm-global\n")
+
+      const lines = report(sandbox, [sandbox.bunBin])
+
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain(`(npm: ${join(modules, "oh-my-openagent")})`)
+    })
+  })
+
+  describe("#given one npm prefix reached through a symlinked npm_config_prefix and through PATH", () => {
+    test("#then its legacy package is reported once", () => {
+      const sandbox = createSandbox()
+      installNpmLegacy(sandbox)
+      installBunNative(sandbox)
+      const alias = join(sandbox.root, "npm-alias")
+      symlinkSync(sandbox.npmPrefix, alias)
+
+      const lines = report(sandbox, [sandbox.bunBin, sandbox.npmBin], { npm_config_prefix: alias })
+
+      expect(lines.filter((line) => line.startsWith("WARN legacy package"))).toHaveLength(1)
+    })
+  })
+
+  describe("#given a global node_modules dir named like the legacy package but holding another manifest", () => {
+    test("#then it is not reported", () => {
+      const sandbox = createSandbox()
+      installBunNative(sandbox)
+      writeFile(
+        join(sandbox.npmPrefix, "lib", "node_modules", "oh-my-openagent", "package.json"),
+        JSON.stringify({ name: "oh-my-openagent-fork", version: "1.0.0" }),
+      )
+
+      expect(report(sandbox, [sandbox.bunBin], { npm_config_prefix: sandbox.npmPrefix })).toEqual([])
+    })
+  })
 })
