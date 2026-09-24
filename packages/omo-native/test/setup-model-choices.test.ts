@@ -116,7 +116,7 @@ describe("omo setup model choices", () => {
       // then
       expect([readFileSync(item.omoConfig, "utf8"), readFileSync(item.settings, "utf8")]).toEqual(before)
       expect(readdirSync(join(item.home, ".omo")).filter((name) => name.includes(".bak-"))).toEqual([])
-      expect(stdout).toContain("planned-model-choices: none")
+      expect(stdout).toContain("model-choices-carried: none")
     })
   })
 
