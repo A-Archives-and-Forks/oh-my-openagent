@@ -3,7 +3,7 @@ import { isPlainObject } from "../internal/plain-object"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
 import { toPosixPath } from "../internal/posix-path"
 import { resolveHomeDir } from "../loader"
-import { OmoConfigSchema } from "../schema"
+import { OMO_CONFIG_HARNESS_IDS, OMO_CONFIG_LEGACY_HARNESS_IDS, OmoConfigSchema, harnessBlockKey } from "../schema"
 import { updateOmoConfig } from "../writer"
 import { collectMigrationEdits, mergeWithoutClobber } from "./merge"
 import { hasMigrationMarker } from "./predicate"
@@ -32,7 +32,13 @@ function markerValue(target: Readonly<Record<string, unknown>>, migrationId: str
   return hasMigrationMarker(target, migrationId) ? value : [...value, migrationId]
 }
 
-const OMO_HARNESS_BLOCKS = ["[codex]", "[opencode]", "[senpi]"] as const
+/**
+ * Every harness block a config may carry, canonical and legacy, derived from the schema so this
+ * list cannot drift. The legacy `[senpi]` block is renamed to `[native]` by a replace-target
+ * migration whose output must be stripped too, otherwise a `[senpi].codegraph` leftover survives
+ * the rename as `[native].codegraph` and strict validation still rejects the file.
+ */
+const OMO_HARNESS_BLOCKS: readonly string[] = [...OMO_CONFIG_HARNESS_IDS, ...OMO_CONFIG_LEGACY_HARNESS_IDS].map(harnessBlockKey)
 
 type RetiredCodegraphCleanup = {
   readonly diagnostics: readonly string[]
@@ -62,18 +68,21 @@ function stripRetiredCodegraph(document: Readonly<Record<string, unknown>>): Ret
   }
 
   return {
-    diagnostics: removedPaths.length === 0 ? [] : ["removed: codegraph (retired configuration)"],
+    diagnostics: removedPaths.map((path) => `removed: ${path.join(".") || "codegraph"} (retired configuration)`),
     document: stripped,
     edits: removedPaths.map((path) => ({ path, value: undefined })),
   }
 }
 
+/** Target and transform output are stripped independently; a replace-target transform that passes the target through reports the same paths twice without this. */
+function uniqueDiagnostics(diagnostics: readonly string[]): readonly string[] {
+  return [...new Set(diagnostics)]
+}
+
 function validateTarget(targetPath: string, document: Readonly<Record<string, unknown>>): void {
   const result = OmoConfigSchema.safeParse(document)
   if (result.success) return
-  const detail = result.error.issues
-    .map((issue: { readonly path: readonly PropertyKey[]; readonly message: string }) => `${issue.path.map(String).join(".")}: ${issue.message}`)
-    .join(", ")
+  const detail = result.error.issues.map((issue) => `${issue.path.map(String).join(".")}: ${issue.message}`).join(", ")
   throw new MigrationValidationError(targetPath, detail)
 }
 
@@ -126,13 +135,17 @@ export function prepareTargetWrite(input: {
   const marker = markerValue(input.target, input.migrationId, input.targetPath)
   const document = { ...merged.merged, _migrations: marker }
   validateTarget(input.targetPath, document)
+  // additionsCleanup strips codegraph from the migration transform output before merging.
+  // Its edits are intentionally omitted here: migration transforms are source-controlled and
+  // should never emit codegraph; even if they did, the merge would exclude it from the
+  // resulting document, so no explicit delete edit is needed for the additions side.
   const edits = [
     ...targetCleanup.edits,
     ...collectMigrationEdits(merged.additions),
     { path: ["_migrations"], value: marker },
   ]
   return {
-    diagnostics: [...merged.diagnostics, ...targetCleanup.diagnostics, ...additionsCleanup.diagnostics],
+    diagnostics: uniqueDiagnostics([...merged.diagnostics, ...targetCleanup.diagnostics, ...additionsCleanup.diagnostics]),
     document,
     edits,
   }
@@ -160,7 +173,7 @@ export function prepareTargetReplacement(input: {
   }
   edits.push({ path: ["_migrations"], value: marker })
   return {
-    diagnostics: [...targetCleanup.diagnostics, ...documentCleanup.diagnostics],
+    diagnostics: uniqueDiagnostics([...targetCleanup.diagnostics, ...documentCleanup.diagnostics]),
     document,
     edits,
   }

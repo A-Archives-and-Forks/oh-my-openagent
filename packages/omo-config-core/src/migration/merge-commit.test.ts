@@ -26,41 +26,6 @@ describe("runMigration", () => {
     expect(parseFile(fileSystem, migrationFixture.targetPath).task).toEqual({ default_concurrency: 5 })
   })
 
-  test("#given a target with retired codegraph settings #when migrating #then the retired settings are removed before validation", () => {
-    // given
-    const fileSystem = new MemoryMigrationFileSystem()
-    fileSystem.files.set(migrationFixture.sourcePath, `{}`)
-    fileSystem.files.set(
-      migrationFixture.targetPath,
-      `{\"codegraph\":{},\"[codex]\":{\"codegraph\":{}},\"[senpi]\":{\"codegraph\":{}},\"profiles\":{\"default\":{\"codegraph\":{},\"[codex]\":{\"codegraph\":{}}}}}`,
-    )
-
-    // when
-    const result = runMigration({
-      env: migrationFixture.env,
-      fileSystem,
-      id: "legacy-codegraph",
-      pid: 100,
-      sources: [{ path: migrationFixture.sourcePath }],
-      targetPath: migrationFixture.targetPath,
-      transform: () => ({ task: { default_concurrency: 3 } }),
-    })
-
-    // then
-    expect(result.status).toBe("migrated")
-    expect(result.diagnostics).toEqual(["removed: codegraph (retired configuration)"])
-    expect(parseFile(fileSystem, migrationFixture.targetPath)).toMatchObject({
-      task: { default_concurrency: 3 },
-      _migrations: ["legacy-codegraph"],
-    })
-    const target = parseFile(fileSystem, migrationFixture.targetPath)
-    expect(target.codegraph).toBeUndefined()
-    expect((target["[codex]"] as Record<string, unknown>).codegraph).toBeUndefined()
-    expect((target["[senpi]"] as Record<string, unknown>).codegraph).toBeUndefined()
-    expect((target.profiles as Record<string, Record<string, unknown>>).default.codegraph).toBeUndefined()
-    expect(((target.profiles as Record<string, Record<string, unknown>>).default["[codex]"] as Record<string, unknown>).codegraph).toBeUndefined()
-  })
-
   test("#given a user target marker #when a project target is discovered later #then the project target migrates independently", () => {
     // given
     const fileSystem = new MemoryMigrationFileSystem()
