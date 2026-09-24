@@ -1,3 +1,24 @@
+## 2026-09-24 - omo setup prints one migration summary and asks one consent for the whole plan (#8851)
+
+### What changed
+
+Every setup stage is now a pure plan builder plus a separate writer, so all plans exist before anything is asked or written:
+
+- `bin/lib/setup-credentials.js` (new; the credential stage moved out of `setup-import.js` unchanged): `planCredentials` / `applyCredentials`, plus `credentialPlanLines` (`planned-add`, `skipped-*`), `credentialCounts` (`imported: N`, `skipped-*: N`) and `credentialQuestion`.
+- `bin/lib/setup-assets-import.js`: `planAssets` / `applyAssets` replace `importOpencodeAssets`; the malformed-`mcp.json` warning becomes a plan notice. `setup-opencode-assets.js` `planOpencodeAssets` also returns `refusedServers` and `skippedSkills` (`{ name, reason }`) next to the notices it already pushed.
+- `bin/lib/setup-providers-import.js`: `planProviders` / `applyProviders` replace `importOpencodeProviders`. `applyProviders` re-reads `auth.json` before adding keys, since the credential stage of the same run may have just written it (its ids are builtin, these are custom, so the plan-time classification still holds). `setup-opencode-providers.js` also returns the declared ids it did not carry (`skipped`).
+- `bin/lib/setup-model-choices-import.js`: `planModelChoices` / `applyModelChoices` replace `importModelChoices`. The plan always validates against the providers the provider stage will add in this run (previously only a dry run did; a real run re-read models.json after the write, which holds the same providers). Dropped choices and blocked targets become plan notices with the same `model choice not carried: ...` / `WARN senpi: ...` text; the per-item `model choice <label>: ...` preview lines are gone.
+- `bin/lib/setup-guidance.js`: `credentialGuidance` returns structured OAuth logins (`login` / `signed-in` / `unsupported`, with the `/login` target) and unmapped ids instead of formatted text.
+- `bin/lib/setup-summary.js` (new): `formatSetupSummary` renders the inventory plus every plan (installed harnesses only; the notes of every stage de-duplicated, plus the detect notices of omo's own store) and holds `TELEMETRY_NOTICE`, copied word for word from omo-opencode `cli-installer.ts` / `tui-installer.ts`.
+- `bin/lib/setup-models.js`: only the guide line and the placeholder template remain; the template prints only when no class has anything to report.
+- `bin/lib/setup-import.js`: `runSetup` plans everything, prints the summary and the telemetry line once, then: `--dry-run` prints the `planned-*` lines and returns; nothing pending prints `Nothing new to import.` and the counts; otherwise one `[Y/n]` consent (Enter accepts) or, with `--ask-each`, the old per-stage `[y/N]` questions. A declined provider stage under `--ask-each` re-plans the model choices against the real models.json and prints the notices that changed. After the writes, one counts block for the stages that ran.
+
+`setup-report.js` (`formatSetupReport`) is unchanged: the launcher and the compiled entry still print it.
+
+### Tests
+
+`test/setup-summary.test.ts` (new): a PTY run pressing Enter imports every class behind one `[Y/n]` with no `[y/N]`, telemetry printed once, no uninstalled-harness names and no template; `--dry-run --yes` writes nothing and asks nothing; a non-interactive run refuses once and `--ask-each` refuses per class; a second run has nothing to consent to and changes no file. Layout-only updates elsewhere: the PTY marker is `[Y/n]`; asserts on `planned-*` lines in non-dry runs moved to the counters (`providers-imported: acme`, `providers-skipped-existing: 2`, `skills-skipped-bundled: 1`, `model-choices-carried: none`); the cache test asserts live provider ids and no `senpi | no` row; the guidance test asserts the structured result; the empty-plan shape includes `refusedServers` / `skippedSkills`.
+
 ## 2026-09-24 - omo setup carries OpenCode model choices into settings.json and the [native] block (#8846)
 
 ### What changed
