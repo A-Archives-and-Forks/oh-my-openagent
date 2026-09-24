@@ -1,4 +1,4 @@
-## 2026-09-24 - omo setup imports every OpenCode key an omo provider can serve, and names the real sign-in command
+## 2026-09-24 - omo setup imports every OpenCode key an omo provider can serve, and names the real sign-in command (#8799)
 
 ### What changed
 
@@ -47,6 +47,8 @@ Reading another harness's config directory and writing the engine's own global c
 `bin/lib/setup-import.js` `runSetup` tail.
 
 Follow-up: the sign-in guidance is printed once, with the plan. `printCounts` used to repeat it, so a `--yes` run showed the same `/login` lines twice (pinned by two `setup-import.test.ts` cases, both RED at `Received: 2` before the change).
+
+Review follow-ups: an imported opencode key is written with `$` and `!` escaped (`$$`, `$!`). The engine resolves every stored `api_key` as a config value - a leading `!` runs a shell command, `$NAME` / `${NAME}` interpolate the environment - while opencode keeps the key verbatim, so a key holding either character was rewritten or executed at read time; `setup-import.test.ts` now resolves the stored value through the engine's own `resolveConfigValue` and expects the source bytes back. The OAuth guidance reads the engine's auth store and says a login is already done when an OAuth entry exists under the target provider, so a re-run no longer repeats `/login` for it. `provider-map-registry.test.ts` reads `ANTHROPIC_SUBSCRIPTION_PROVIDER_ID` from the engine instead of hand-typing it.
 
 ## 2026-09-23 - the comment-checker runtime dependency is removed again; the extension downloads the pinned release (#8247)
 

@@ -36,6 +36,14 @@ function candidate(provider, key, source, providerMap) {
   return target ? { provider: target, key, source } : { provider, source, unmapped: true }
 }
 
+// opencode keeps a pasted key verbatim and never interprets it, but the engine resolves every stored
+// key as a config value: a leading `!` runs a shell command and `$NAME` / `${NAME}` interpolate the
+// environment. `$$` and `$!` are the engine's literal escapes, so the engine reads back the exact
+// bytes opencode held.
+function literalConfigValue(value) {
+  return value.replace(/[$!]/g, "$$$&")
+}
+
 function readOpencode(path, providerMap, plan) {
   if (!existsSync(path)) return
   try {
@@ -46,7 +54,7 @@ function readOpencode(path, providerMap, plan) {
       if (entry.type === "oauth") {
         plan.oauth.push(provider)
       } else if (entry.type === "api" && typeof entry.key === "string") {
-        plan.candidates.push(candidate(provider, entry.key, "opencode", providerMap))
+        plan.candidates.push(candidate(provider, literalConfigValue(entry.key), "opencode", providerMap))
       }
     }
   } catch (error) {
@@ -147,7 +155,7 @@ function list(label, ids) {
   return `${label}: ${ids.length > 0 ? ids.join(", ") : "none"}`
 }
 
-function printPlan(result, dryRun, providerMap) {
+function printPlan(result, dryRun, providerMap, existing) {
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")
   process.stdout.write(`${[
     list("planned-add", result.additions.map((item) => item.provider)),
@@ -155,7 +163,7 @@ function printPlan(result, dryRun, providerMap) {
     list("skipped-oauth", result.skippedOauth),
     list("skipped-unmapped", result.skippedUnmapped),
   ].join("\n")}\n`)
-  process.stdout.write(formatCredentialGuidance(result, providerMap))
+  process.stdout.write(formatCredentialGuidance(result, providerMap, existing))
 }
 
 // The plan (printed on every run, dry or not) already carries the per-credential guidance, so the
@@ -220,9 +228,10 @@ async function importCredentials(runtime, target, args) {
   }
   const result = classify(plan, current.entries)
   const dryRun = args.includes("--dry-run")
-  printPlan(result, dryRun, providerMap)
-  if (dryRun || result.additions.length === 0) {
-    if (!dryRun) printCounts(result)
+  printPlan(result, dryRun, providerMap, current.entries)
+  if (dryRun) return
+  if (result.additions.length === 0) {
+    printCounts(result)
     return
   }
   if (!await consent(result, target, { ...runtime, yes: args.includes("--yes") })) {

@@ -172,7 +172,7 @@ bun add -g omo-ai@beta
 omo
 ```
 
-A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
+A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. Without bun, `npm i -g omo-ai@beta` works too. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
 **Where omo keeps its state.** OmO Native stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout
@@ -182,7 +182,7 @@ without copying it, so an older standalone install keeps working. Set `OMO_CODIN
 override the location; the legacy `SENPI_*` and `PI_*` variables are still read when the `OMO_*`
 one is unset.
 
-**Upgrade order on older machines.** If the machine still has oh-my-openagent/oh-my-opencode 4.19.4 or earlier installed globally, that package owns a global `omo` bin and the install above fails with EEXIST. Upgrade or uninstall the old package first, then install `omo-ai@beta`.
+**Older machines: the global `omo` name is already taken.** oh-my-openagent/oh-my-opencode 4.19.4 and earlier ship their own global `omo` command. A raw `npm i -g omo-ai@beta` on such a machine fails with EEXIST, and a raw `bun add -g omo-ai@beta` succeeds while the old command keeps winning on PATH, so `omo --version` still prints `4.19.4`. `bunx oh-my-openagent@beta install --platform=native` (`npx` without bun; the `@beta` tag is required, `latest` is 4.19.4 and has no native platform) handles it: it removes that one stale `omo` entry (the old package and its other commands stay), installs `omo-ai@beta`, and then verifies `omo --version`. If another `omo` still shadows it, the installer prints the exact `export PATH=...` line to fix the order. When you later remove the old package: `bun remove -g oh-my-openagent` leaves omo-ai's `omo` alone, but `npm uninstall -g oh-my-openagent` deletes every bin name the old package declared, including the `omo` that npm-installed omo-ai now owns, so run `npm i -g omo-ai@beta` again right after it.
 
 ### First run: `omo setup`
 
@@ -639,7 +639,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 #### What each role does and which model it gets
 
-**The main agent** is the session you are talking to. It runs on your session model; there is no separate agent chain for it. Claude Opus 5.5 is the recommended choice, with GPT 5.6 Sol as the recommended GPT configuration. Models with tuned prompt presets are listed in [Agent Model Matching](./agent-model-matching.md).
+**The main agent** is the session you are talking to. It runs on your session model; there is no separate agent chain for it. Claude Opus 5.5 is the recommended choice, with GPT-6 Astra or GPT-6 Sol as the recommended GPT configuration. With no `model_profile`, a fresh OmO Native session picks the first model you have connected from the Recommended list (Opus 5.5, Fable 5.1, Kimi K3, GPT-6 Astra, GPT-6 Sol, GLM 5.3). Models with tuned prompt presets are listed in [Agent Model Matching](./agent-model-matching.md).
 
 **Curated agents** (read-only helpers the main agent delegates to through `task(subagent_type: ...)`; chains from `packages/senpi-task/src/agents/builtin/fallback-chains.ts`):
 
@@ -677,11 +677,11 @@ If the user wants to override which model a curated agent or category uses, edit
 }
 ```
 
-**Lower-risk overrides** (compatible behavior): main agent Opus → Sonnet/Kimi K3/GLM 5.2 (each has a tuned prompt preset); Plan Consultant Sonnet → Opus/GPT-5.6 Sol; Plan Reviewer GPT-6 Astra → Opus 5 (max).
+**Lower-risk overrides** (compatible behavior): main agent Opus 5.5 → Fable 5.1/Kimi K3/GLM 5.3 (each is on the Recommended list and has a tuned prompt preset); Plan Consultant Fable 5.1 → Opus 5.5/Kimi K3; Plan Reviewer GPT-6 Astra → Opus 5.5 (max).
 
 **GLM 5.2 as the session model:** GLM 5.2 gets the GLM-calibrated prompt preset because its model ID is recognized as GLM. It still has less maintainer validation than Claude or Kimi.
 
-**Dangerous overrides** (no prompt support): main agent → GPT models without a preset (the supported GPT paths cover 5.4, 5.5, and 5.6 Sol); `explore` → Opus (massive cost waste); `librarian` → Opus (same).
+**Dangerous overrides** (no prompt support): main agent → GPT models without a preset (presets cover the GPT-6 family and the GPT-5 line through 5.6); `explore` → Opus (massive cost waste); `librarian` → Opus (same).
 
 #### Optional: community model-management tools
 
@@ -762,7 +762,7 @@ Add custom skills under `.opencode/skills/<name>/SKILL.md` (project scope) or `~
 
 After verification, tell the user:
 
-1. **The main agent runs on your session model, and Claude Opus 5.5 is strongly recommended** (GPT 5.6 Sol for a GPT setup). Other models may noticeably degrade the experience.
+1. **The main agent runs on your session model, and Claude Opus 5.5 is strongly recommended** (GPT-6 Astra or GPT-6 Sol for a GPT setup). Other models may noticeably degrade the experience.
 2. **Feeling lazy?** Just include `ultrawork` (or `ulw`) in your prompt. The agent figures out the rest.
 3. **Need precision?** Run `/ulw-plan` to produce a plan under `.omo/plans/`, then run `/ulw-execute` so the main agent executes the verified plan in the same session.
 4. **Your own agent/category setup?** Read [`docs/guide/agent-model-matching.md`](agent-model-matching.md) — the assistant can interview the user and tune the config.

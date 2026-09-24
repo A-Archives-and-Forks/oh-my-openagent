@@ -26,6 +26,10 @@ const { builtinProviders } = await import(providerRegistryUrl) as {
   builtinProviders(): Array<{ id: string, auth?: { oauth?: unknown } }>
 }
 
+const { ANTHROPIC_SUBSCRIPTION_PROVIDER_ID } = await import(pathToFileURL(join(
+  senpiPackageRoot, "dist", "core", "extensions", "builtin", "anthropic-subscription", "account-management.js",
+)).href) as { ANTHROPIC_SUBSCRIPTION_PROVIDER_ID: string }
+
 test("#given the installed Senpi pin #when builtin providers are derived #then the provider map is exact", () => {
   expect(senpiManifest.version).toBe(omoNativeManifest.dependencies["@code-yeongyu/senpi"])
 
@@ -44,7 +48,8 @@ test("#given the installed Senpi pin #when oauth providers are derived #then the
 
   // Every /login target the map names must be a provider the engine can actually sign in to:
   // a builtin oauth provider, or an extension-registered one that ships with the engine.
-  const extensionOauthIds = new Set(["anthropic-subscription"])
+  // The id is read from the engine so a rename there fails here instead of shipping a dead /login hint.
+  const extensionOauthIds = new Set([ANTHROPIC_SUBSCRIPTION_PROVIDER_ID])
   for (const target of Object.values(providerMap.oauthLogins)) {
     expect(expectedOauthIds.includes(target) || extensionOauthIds.has(target)).toBe(true)
   }

@@ -12,16 +12,20 @@ function oauthLoginTarget(provider, providerMap) {
   return providerMap.oauthProviderIds.includes(provider) ? provider : undefined
 }
 
-function oauthLines(providers, providerMap) {
+function oauthLine(provider, providerMap, existing) {
+  const target = oauthLoginTarget(provider, providerMap)
+  if (!target) return `  ${provider}: omo has no provider for this login; keep using the other agent for it`
+  // A re-run after the user followed the advice must not tell them to sign in a second time.
+  if (existing[target]?.type === "oauth") return `  ${provider}: already signed in to \`${target}\``
+  return `  ${provider}: run \`omo\`, then \`/login ${target}\``
+}
+
+function oauthLines(providers, providerMap, existing) {
   if (providers.length === 0) return []
-  const lines = ["OAuth logins are not copied. Sign in again from inside omo:"]
-  for (const provider of providers) {
-    const target = oauthLoginTarget(provider, providerMap)
-    lines.push(target
-      ? `  ${provider}: run \`omo\`, then \`/login ${target}\``
-      : `  ${provider}: omo has no provider for this login; keep using the other agent for it`)
-  }
-  return lines
+  return [
+    "OAuth logins are not copied. Sign in again from inside omo:",
+    ...providers.map((provider) => oauthLine(provider, providerMap, existing)),
+  ]
 }
 
 function unmappedLines(providers) {
@@ -33,9 +37,9 @@ function unmappedLines(providers) {
   ]
 }
 
-export function formatCredentialGuidance(result, providerMap) {
+export function formatCredentialGuidance(result, providerMap, existing = {}) {
   const lines = [
-    ...oauthLines(result.skippedOauth, providerMap),
+    ...oauthLines(result.skippedOauth, providerMap, existing),
     ...unmappedLines(result.skippedUnmapped),
   ]
   return lines.length > 0 ? `${lines.join("\n")}\n` : ""

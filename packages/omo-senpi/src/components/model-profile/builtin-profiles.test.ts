@@ -122,10 +122,9 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     ])
   })
 
-  it("splits geeky-normal so sol-fast stays on the subscription/API lanes and plain sol also opens Copilot/OpenCode", () => {
+  it("runs geeky-normal as gpt-5.6-sol medium on every GPT lane", () => {
     expect(BUILTIN_MODEL_PROFILES["geeky-normal"]?.models).toEqual([
-      { providers: ["chatgpt-subscription", "openai"], model: "gpt-6-sol-fast", variant: "medium" },
-      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-5.6-sol", variant: "medium" },
     ])
   })
 

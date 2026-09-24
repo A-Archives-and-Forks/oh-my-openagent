@@ -97,12 +97,7 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
     tier: "normal",
     displayName: "Geeky · Normal",
     description: "Works on one task and thinks it through.",
-    models: [
-      // The Fast tier exists only on the ChatGPT subscription and API lanes; Copilot and
-      // OpenCode serve plain gpt-6-sol, so the next rung keeps the lane open at the same effort.
-      { providers: ["chatgpt-subscription", "openai"], model: "gpt-6-sol-fast", variant: "medium" },
-      { providers: [...GPT_PROVIDERS], model: "gpt-6-sol", variant: "medium" },
-    ],
+    models: [{ providers: [...GPT_PROVIDERS], model: "gpt-5.6-sol", variant: "medium" }],
   },
   "geeky-heavy": {
     family: "geeky",
