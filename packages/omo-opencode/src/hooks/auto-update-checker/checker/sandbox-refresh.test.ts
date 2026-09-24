@@ -4,7 +4,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 
-import { getPluginSandboxRoot, markPluginSandboxStale } from "../../../shared/opencode-plugin-sandbox"
+import {
+  acquirePluginSandboxLease,
+  getPluginSandboxRoot,
+  markPluginSandboxStale,
+  releasePluginSandboxLease,
+} from "../../../shared/opencode-plugin-sandbox"
 import { getLoadedPluginSandboxDir, scheduleOpenCodeSandboxRefreshOnExit, trackPluginSandbox } from "./sandbox-refresh"
 
 const tempDirs: string[] = []
@@ -123,6 +128,46 @@ describe("scheduleOpenCodeSandboxRefreshOnExit", () => {
 
     // then
     expect(existsSync(sandboxDir)).toBe(true)
+  })
+})
+
+describe("sandbox refresh with several OpenCode processes", () => {
+  test("#given another live OpenCode process runs from the sandbox #when this one exits #then the sandbox survives until the last one exits", () => {
+    // given - two windows share the cache; the other one is this test runner
+    // itself, the exiting one a pid that is not ours
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+    acquirePluginSandboxLease(sandboxDir, process.pid)
+    const exiting = exitRecorder()
+    scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit: exiting.onExit, cacheDir, pid: process.pid + 100_000 })
+
+    // when
+    exiting.callbacks[0]?.()
+
+    // then - the live process keeps its files, and the request is kept for it
+    expect(existsSync(join(sandboxDir, "node_modules", "oh-my-openagent"))).toBe(true)
+
+    // when the other process has exited too and an exit handler runs again
+    releasePluginSandboxLease(sandboxDir, process.pid)
+    exiting.callbacks[0]?.()
+
+    // then
+    expect(existsSync(sandboxDir)).toBe(false)
+  })
+
+  test("#given a lease left by a process that was killed #when the sandbox is refreshed #then the stale lease does not block it", () => {
+    // given - pid 2^22+1 is above every platform's pid_max, so it is never alive
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@beta")
+    acquirePluginSandboxLease(sandboxDir, 4_194_305)
+    const { callbacks, onExit } = exitRecorder()
+    scheduleOpenCodeSandboxRefreshOnExit(sandboxDir, { onExit, cacheDir })
+
+    // when
+    callbacks[0]?.()
+
+    // then
+    expect(existsSync(sandboxDir)).toBe(false)
   })
 })
 

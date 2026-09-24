@@ -4,9 +4,12 @@ import { fileURLToPath } from "node:url"
 import { log } from "../../../shared/logger"
 import { getOpenCodeCacheDir } from "../../../shared/data-path"
 import {
+  acquirePluginSandboxLease,
+  hasOtherLivePluginSandboxLease,
   isPluginSandboxDir,
   isPluginSandboxMarkedStale,
   markPluginSandboxStale,
+  releasePluginSandboxLease,
   removePluginSandbox,
 } from "../../../shared/opencode-plugin-sandbox"
 import { findPackageJsonUp } from "./package-json-locator"
@@ -32,6 +35,11 @@ import { findPackageJsonUp } from "./package-json-locator"
  * plugin entry point loaded from a sandbox (server and TUI) registers the
  * exit handler that acts on it. A process that dies from a signal runs no
  * handler; the marker stays and the next exit applies it.
+ *
+ * Every OpenCode window shares the one cache, so tracking also takes a
+ * per-process lease on the sandbox, and the exit handler leaves the sandbox
+ * (and the request) in place while another live process holds one: the last
+ * OpenCode process to exit applies the refresh.
  */
 
 export interface SandboxRefreshDeps {
@@ -39,6 +47,8 @@ export interface SandboxRefreshDeps {
   onExit?: (callback: () => void) => void
   /** The OpenCode cache root that must contain the sandbox. */
   cacheDir?: string
+  /** The pid the lease is taken for. Defaults to `process.pid`. */
+  pid?: number
 }
 
 const trackedSandboxDirs = new Set<string>()
@@ -57,9 +67,14 @@ export function getLoadedPluginSandboxDir(moduleUrl: string, cacheDir: string = 
   return isPluginSandboxDir(workspace, cacheDir) ? workspace : null
 }
 
-function refreshMarkedSandbox(sandboxDir: string, cacheDir: string): void {
+function refreshMarkedSandbox(sandboxDir: string, cacheDir: string, pid: number): void {
   try {
+    releasePluginSandboxLease(sandboxDir, pid)
     if (!isPluginSandboxMarkedStale(sandboxDir)) return
+    if (hasOtherLivePluginSandboxLease(sandboxDir, pid)) {
+      log(`[auto-update-checker] Another OpenCode process still runs from ${sandboxDir}; the last one to exit refreshes it`)
+      return
+    }
     const removed = removePluginSandbox(sandboxDir, cacheDir)
     log(
       removed
@@ -79,8 +94,15 @@ export function trackPluginSandbox(sandboxDir: string, deps: SandboxRefreshDeps 
   if (trackedSandboxDirs.has(sandboxDir)) return true
   trackedSandboxDirs.add(sandboxDir)
 
+  const pid = deps.pid ?? process.pid
+  try {
+    acquirePluginSandboxLease(sandboxDir, pid)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`[auto-update-checker] Could not lease OpenCode plugin sandbox ${sandboxDir}: ${message}`)
+  }
   const onExit = deps.onExit ?? ((callback: () => void) => process.once("exit", callback))
-  onExit(() => refreshMarkedSandbox(sandboxDir, cacheDir))
+  onExit(() => refreshMarkedSandbox(sandboxDir, cacheDir, pid))
   return true
 }
 

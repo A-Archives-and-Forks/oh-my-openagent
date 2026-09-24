@@ -4,7 +4,9 @@ import { join } from "node:path"
 import {
   getOpenCodeCacheDir,
   getPluginSandboxDir,
+  hasOtherLivePluginSandboxLease,
   log,
+  markPluginSandboxStale,
   parseJsonc,
   removePluginSandbox,
 } from "../../shared"
@@ -16,9 +18,12 @@ import { getConfigDir } from "./config-context"
  * OpenCode serves the plugin from `<cache>/packages/<spec>/` and its
  * `Npm.add()` never re-resolves the tag while that sandbox exists, so a user
  * who re-runs the installer to upgrade would keep loading the version cached
- * there. The installer runs outside OpenCode, which makes this the one moment
- * the directory can be removed with no live session reading from it; the next
- * OpenCode start reinstalls the spec at its current version.
+ * there. The next OpenCode start reinstalls the spec at its current version.
+ *
+ * The installer is often run while OpenCode is open (from another terminal, or
+ * by the agent itself), and a live session reads from the sandbox lazily. A
+ * sandbox another process holds a lease on is therefore only marked for
+ * refresh; the last OpenCode process to exit removes it.
  *
  * Only the specs the config actually loads are touched, so an unrelated
  * channel a user keeps around (`@beta` next to `@latest`) is left alone.
@@ -31,6 +36,8 @@ export interface RefreshOpenCodePluginSandboxesOptions {
 
 export interface RefreshOpenCodePluginSandboxesResult {
   readonly removed: readonly string[]
+  /** Sandboxes a running OpenCode still uses; they refresh when it exits. */
+  readonly deferred: readonly string[]
 }
 
 type ConfigShape = {
@@ -62,10 +69,16 @@ export function refreshOpenCodePluginSandboxes(
   const cacheDir = options.cacheDir ?? getOpenCodeCacheDir()
 
   const removed: string[] = []
+  const deferred: string[] = []
   for (const entry of readPluginEntries(configDir)) {
     const sandboxDir = getPluginSandboxDir(cacheDir, entry)
     if (!sandboxDir) continue
     try {
+      if (hasOtherLivePluginSandboxLease(sandboxDir) && markPluginSandboxStale(sandboxDir, cacheDir)) {
+        deferred.push(sandboxDir)
+        log(`[install] OpenCode is running from ${sandboxDir}; marked it for refresh when OpenCode exits`)
+        continue
+      }
       if (!removePluginSandbox(sandboxDir, cacheDir)) continue
       removed.push(sandboxDir)
       log(`[install] Removed stale OpenCode plugin sandbox: ${sandboxDir}`)
@@ -75,5 +88,5 @@ export function refreshOpenCodePluginSandboxes(
     }
   }
 
-  return { removed }
+  return { removed, deferred }
 }

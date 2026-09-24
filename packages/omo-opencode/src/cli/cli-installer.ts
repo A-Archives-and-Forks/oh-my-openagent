@@ -125,9 +125,12 @@ export async function runCliInstaller(args: InstallArgs, version: string): Promi
     // after this install. Remove the sandboxes for the spec(s) just written;
     // the next OpenCode start reinstalls the current channel version (#5367).
     try {
-      const { removed } = refreshOpenCodePluginSandboxes()
+      const { removed, deferred } = refreshOpenCodePluginSandboxes()
       if (removed.length > 0) {
         printInfo("Refreshed the OpenCode plugin cache; the next OpenCode start loads the installed version.")
+      }
+      if (deferred.length > 0) {
+        printInfo("OpenCode is running from its plugin cache; it refreshes when the last OpenCode window closes. Restart OpenCode to load the installed version.")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

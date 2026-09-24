@@ -105,9 +105,12 @@ export async function runTuiInstaller(args: InstallArgs, version: string): Promi
     // spec(s) just written so the next OpenCode start loads this version
     // instead of the cached one (#5367).
     try {
-      const { removed } = refreshOpenCodePluginSandboxes()
+      const { removed, deferred } = refreshOpenCodePluginSandboxes()
       if (removed.length > 0) {
         p.log.info("Refreshed the OpenCode plugin cache; the next OpenCode start loads the installed version.")
+      }
+      if (deferred.length > 0) {
+        p.log.info("OpenCode is running from its plugin cache; it refreshes when the last OpenCode window closes. Restart OpenCode to load the installed version.")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

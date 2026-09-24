@@ -1,4 +1,4 @@
-import { existsSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
 
 import { log } from "./logger"
@@ -26,6 +26,13 @@ const SANDBOX_PARENT_DIR = "packages"
  * ignores the file; a reinstall starts from a fresh directory without it.
  */
 const REFRESH_MARKER_FILE = ".omo-refresh-pending"
+/**
+ * One empty file per OpenCode process running from the sandbox, named by pid.
+ * Every OpenCode window shares one cache, and a live session reads skills,
+ * the LSP/MCP servers and binaries out of the sandbox lazily, so it may only
+ * be removed once no other process is using it.
+ */
+const LEASE_DIR = ".omo-leases"
 
 export function getPluginSandboxRoot(cacheDir: string): string {
   return join(cacheDir, SANDBOX_PARENT_DIR)
@@ -108,4 +115,41 @@ export function markPluginSandboxStale(dir: string, cacheDir: string): boolean {
 
 export function isPluginSandboxMarkedStale(dir: string): boolean {
   return existsSync(join(dir, REFRESH_MARKER_FILE))
+}
+
+export function acquirePluginSandboxLease(dir: string, pid: number = process.pid): void {
+  const leaseDir = join(dir, LEASE_DIR)
+  mkdirSync(leaseDir, { recursive: true })
+  writeFileSync(join(leaseDir, String(pid)), "")
+}
+
+export function releasePluginSandboxLease(dir: string, pid: number = process.pid): void {
+  rmSync(join(dir, LEASE_DIR, String(pid)), { force: true })
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    // EPERM: the pid exists but belongs to someone else - still alive.
+    return (error as NodeJS.ErrnoException).code === "EPERM"
+  }
+}
+
+/**
+ * True while another live process holds a lease on the sandbox. Leases of
+ * dead processes (a killed session never releases its own) are pruned. A
+ * reused pid only postpones the refresh, it never removes a sandbox in use.
+ */
+export function hasOtherLivePluginSandboxLease(dir: string, pid: number = process.pid): boolean {
+  const leaseDir = join(dir, LEASE_DIR)
+  if (!existsSync(leaseDir)) return false
+  for (const entry of readdirSync(leaseDir)) {
+    const holder = Number(entry)
+    if (!Number.isInteger(holder) || holder <= 0 || holder === pid) continue
+    if (isProcessAlive(holder)) return true
+    rmSync(join(leaseDir, entry), { force: true })
+  }
+  return false
 }

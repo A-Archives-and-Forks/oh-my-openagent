@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { acquirePluginSandboxLease } from "../../shared/opencode-plugin-sandbox"
 import { refreshOpenCodePluginSandboxes } from "./refresh-opencode-plugin-sandbox"
 
 const tempDirs: string[] = []
@@ -119,5 +120,21 @@ describe("refreshOpenCodePluginSandboxes", () => {
 
     // then
     expect(result.removed).toEqual([])
+  })
+
+  it("#given OpenCode is still running from the sandbox #when the installer refreshes #then it defers to OpenCode's exit instead of deleting live files", () => {
+    // given - the installer runs from a terminal (or the agent) while OpenCode is open
+    const { configDir, cacheDir } = tempRoot()
+    writeOpenCodeConfig(configDir, ["oh-my-openagent"])
+    const sandbox = seedSandbox(cacheDir, "oh-my-openagent@latest")
+    acquirePluginSandboxLease(sandbox, process.ppid)
+
+    // when
+    const result = refreshOpenCodePluginSandboxes({ configDir, cacheDir })
+
+    // then
+    expect(result.removed).toEqual([])
+    expect(result.deferred).toEqual([sandbox])
+    expect(existsSync(join(sandbox, "node_modules", "oh-my-openagent"))).toBe(true)
   })
 })
