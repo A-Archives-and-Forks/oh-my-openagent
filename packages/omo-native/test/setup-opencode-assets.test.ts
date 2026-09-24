@@ -130,6 +130,19 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given an opencode.jsonc saved with a UTF-8 byte order mark", () => {
+    describe("#when it is planned", () => {
+      test("#then it parses instead of reporting an unrecognized token", () => {
+        const plan = fixture(undefined, {
+          jsonc: `\uFEFF{\n  "mcp": { "b": { "type": "remote", "url": "https://b.test/mcp" }, },\n}\n`,
+        })
+
+        expect(plan.notices).toEqual([])
+        expect(plan.mcpServers.map((server) => server.name)).toEqual(["b"])
+      })
+    })
+  })
+
   describe("#given global opencode skills", () => {
     describe("#when they are planned", () => {
       test("#then each skill directory is listed by name", () => {

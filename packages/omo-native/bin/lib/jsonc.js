@@ -43,9 +43,11 @@ function strip(text) {
 }
 
 export function parseJsonc(text) {
+  // Editors on Windows save a UTF-8 byte order mark that JSON.parse rejects as a token.
+  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
   try {
-    return JSON.parse(text)
+    return JSON.parse(source)
   } catch {
-    return JSON.parse(strip(text))
+    return JSON.parse(strip(source))
   }
 }
