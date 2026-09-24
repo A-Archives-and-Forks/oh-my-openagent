@@ -57,7 +57,7 @@ describe("createNativeSkillSources", () => {
     assert.deepEqual(withSharedAssets, ["ulw-research"])
 
     const ulwResearch = sources.find(({ name }) => name === "ulw-research")
-    assert.deepEqual(ulwResearch?.sharedAssets, ["scripts", "references/report-gates.md"])
+    assert.deepEqual(ulwResearch?.sharedAssets, ["scripts", "references/report-gates.md", "references/deliverable-phase.md"])
   })
 
   test("#given each sharedAssets path #when resolved against the shared skill #then it is relative, contained, and exists", () => {
