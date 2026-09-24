@@ -192,12 +192,15 @@ export function planOpencodeProviders(options = {}) {
   const notices = []
   const declared = readOpencodeSection(opencodeConfigSources(home, env).files, "provider", "custom providers", notices)
   // auth.json is only a key source here; with no provider block it is the credential stage's alone.
-  if (Object.keys(declared).length === 0) return { providers: [], notices }
+  if (Object.keys(declared).length === 0) return { providers: [], skipped: [], notices }
   const context = { builtin: builtinProviderIds(), opencodeAuth: readOpencodeAuth(home, env, notices), notices }
   const providers = []
+  // The ids declared but not carried; each one's reason is in `notices`.
+  const skipped = []
   for (const [id, entry] of Object.entries(declared)) {
     const converted = convertProvider(id, entry, context)
     if (converted) providers.push(converted)
+    else skipped.push(id)
   }
-  return { providers: providers.sort((left, right) => left.id.localeCompare(right.id)), notices }
+  return { providers: providers.sort((left, right) => left.id.localeCompare(right.id)), skipped: skipped.sort(), notices }
 }

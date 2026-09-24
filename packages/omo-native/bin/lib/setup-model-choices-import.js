@@ -1,6 +1,7 @@
 /**
  * The model-choice stage of `omo setup`: what `setup-opencode-models.js` converted, classified
- * against the files the engine and the native harness read, previewed, confirmed, written.
+ * against the files the engine and the native harness read. `planModelChoices` only reads;
+ * `applyModelChoices` is the one writer.
  *
  * - `<agentDir>/settings.json[c]` `defaultProvider` + `defaultModel`: the engine's saved default
  *   (settings-manager.js `getDefaultProvider` / `getDefaultModel`, handed to model-resolver.js
@@ -65,24 +66,17 @@ function lookup(document, path) {
   return path.reduce((node, key) => (isPlainObject(node) && Object.hasOwn(node, key) ? node[key] : undefined), document)
 }
 
-function describe(entry) {
-  const chain = [entry.model, ...(entry.models ?? []).map((item) => (typeof item === "string" ? item : item.model))]
-  const refs = chain.filter((item) => item !== undefined).join(" -> ")
-  const reasoning = entry.reasoning !== undefined ? `reasoning ${entry.reasoning}` : undefined
-  return [refs, reasoning].filter((part) => part !== undefined && part !== "").join(", ")
-}
-
 function planItems(plan, omo, settings) {
   const block = harnessBlock(omo.document)
   const items = []
   if (plan.defaultModel !== undefined) {
-    const { provider, modelId, ref, source } = plan.defaultModel
-    items.push({ label: "default model", detail: `${ref} (from opencode model ${source})`, target: settings, path: [], members: [["defaultProvider", provider], ["defaultModel", modelId]] })
-    items.push({ label: "model_profile", detail: ref, target: omo, path: [block], members: [["model_profile", ref]] })
+    const { provider, modelId, ref } = plan.defaultModel
+    items.push({ label: "default model", kind: "default", target: settings, path: [], members: [["defaultProvider", provider], ["defaultModel", modelId]] })
+    items.push({ label: "model_profile", kind: "default", target: omo, path: [block], members: [["model_profile", ref]] })
   }
   for (const [kind, key] of [["categories", "category"], ["agents", "agent"]]) {
     for (const { name, entry } of plan[kind]) {
-      items.push({ label: `${key} ${name}`, detail: describe(entry), target: omo, path: [block, kind], members: [[name, entry]] })
+      items.push({ label: `${key} ${name}`, kind, name, target: omo, path: [block, kind], members: [[name, entry]] })
     }
   }
   return items
@@ -103,24 +97,40 @@ function list(label, values) {
   return `${label}: ${values.length > 0 ? values.join(", ") : "none"}`
 }
 
-function formatPlan(items, dropped) {
+function labels(plan, state) {
+  return plan.items.filter((item) => item.state === state).map((item) => item.label)
+}
+
+// Every reason a choice was not written, as notices: a blocked target, then each dropped choice.
+function planNotices(items, dropped) {
   const lines = []
   for (const target of new Set(items.filter((item) => item.state === "blocked").map((item) => item.target.path))) {
     lines.push(`WARN senpi: ${target} is malformed or has a non-object block; these model choices were not written: ${items.filter((item) => item.state === "blocked" && item.target.path === target).map((item) => item.label).join(", ")}`)
   }
-  for (const item of items) {
-    const suffix = item.state === "kept" ? " (kept the existing value)" : item.state === "carried" ? " (already carried)" : ""
-    lines.push(`model choice ${item.label}: ${item.detail}${suffix}`)
-  }
   for (const reason of dropped) lines.push(`model choice not carried: ${reason}`)
-  const labels = (state) => items.filter((item) => item.state === state).map((item) => item.label)
-  lines.push(
-    list("planned-model-choices", labels("pending")),
-    list("model-choices-skipped-existing", labels("kept")),
-    list("model-choices-already-carried", labels("carried")),
-    `model-choices-not-carried: ${dropped.length}`,
-  )
-  return `${lines.join("\n")}\n`
+  return lines
+}
+
+export function modelChoicePlanLines(plan) {
+  return [
+    list("planned-model-choices", labels(plan, "pending")),
+    list("model-choices-skipped-existing", labels(plan, "kept")),
+    list("model-choices-already-carried", labels(plan, "carried")),
+    `model-choices-not-carried: ${plan.dropped.length}`,
+  ]
+}
+
+export function modelChoiceCounts(plan) {
+  return [
+    list("model-choices-carried", plan.carried ?? []),
+    list("model-choices-skipped-existing", labels(plan, "kept")),
+    `model-choices-not-carried: ${plan.dropped.length}`,
+  ]
+}
+
+export function modelChoiceQuestion(plan) {
+  const targets = [...new Set(plan.items.filter((item) => item.state === "pending").map((item) => item.target.path))]
+  return `Write ${plan.pending} model choice(s) into ${targets.join(" and ")}? [y/N] `
 }
 
 function writeText(target, text) {
@@ -155,31 +165,38 @@ function writeTarget(target, items) {
   }
 }
 
-/** Same detect -> preview -> consent -> write shape as every other setup stage. */
-export async function importModelChoices(stage) {
+/**
+ * Read-only. `customProviders` are the providers the custom-provider stage adds in this run: the
+ * plan is built before anything is written, so they are validated as if models.json had them.
+ */
+export async function planModelChoices(stage) {
   const { home, env } = stage.runtime
-  const dryRun = stage.args.includes("--dry-run")
   const omo = readTarget(omoTargetPath(home))
   const raw = readModelChoices({ home, env, opencodeBlock: omo.document["[opencode]"] })
-  for (const notice of raw.notices) process.stdout.write(`${notice}\n`)
-  if (!hasModelChoices(raw)) return
+  const empty = { notices: raw.notices, present: false, items: [], dropped: [], pending: 0 }
+  if (!hasModelChoices(raw)) return empty
   let registry
   try {
-    // A real run reads models.json after the provider stage wrote it; a dry run wrote nothing.
-    const customProviders = dryRun ? stage.providers.providers : []
-    registry = await (stage.loadRegistry ?? loadEngineModels)({ agentDir: stage.agentDir, customProviders })
+    registry = await (stage.loadRegistry ?? loadEngineModels)({ agentDir: stage.agentDir, customProviders: stage.customProviders })
   } catch (error) {
-    process.stdout.write(`WARN senpi: could not read the engine's model list (${error.message}); model choices were not carried\n`)
-    return
+    return { ...empty, notices: [...raw.notices, `WARN senpi: could not read the engine's model list (${error.message}); model choices were not carried`] }
   }
-  const plan = convertModelChoices(raw, registry, stage.oauthProviders)
+  const converted = convertModelChoices(raw, registry, stage.oauthProviders)
   const settings = readTarget(settingsTargetPath(stage.agentDir))
-  const items = planItems(plan, omo, settings).map((item) => ({ ...item, state: classify(item) }))
-  process.stdout.write(formatPlan(items, plan.dropped))
-  const pending = items.filter((item) => item.state === "pending")
-  if (dryRun || pending.length === 0) return
+  const items = planItems(converted, omo, settings).map((item) => ({ ...item, state: classify(item) }))
+  return {
+    notices: [...raw.notices, ...planNotices(items, converted.dropped)],
+    present: true,
+    items,
+    dropped: converted.dropped,
+    defaultModel: converted.defaultModel,
+    pending: items.filter((item) => item.state === "pending").length,
+  }
+}
+
+/** The stage's one writer; records what it wrote as `plan.carried` for the counts. */
+export function applyModelChoices(plan) {
+  const pending = plan.items.filter((item) => item.state === "pending")
   const targets = [...new Set(pending.map((item) => item.target))]
-  if (!await stage.confirm(`Write ${pending.length} model choice(s) into ${targets.map((target) => target.path).join(" and ")}? [y/N] `)) return
-  const carried = targets.flatMap((target) => writeTarget(target, pending.filter((item) => item.target === target)))
-  process.stdout.write(`${list("model-choices-carried", carried)}\n`)
+  plan.carried = targets.flatMap((target) => writeTarget(target, pending.filter((item) => item.target === target)))
 }

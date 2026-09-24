@@ -9,6 +9,7 @@ import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core
 import { composeModelProvider } from "../../../node_modules/@code-yeongyu/senpi/dist/core/provider-composer.js"
 import { resolveConfigValue } from "../../../node_modules/@code-yeongyu/senpi/dist/core/resolve-config-value.js"
 import { readAuthStore, writeAuthStore } from "../bin/lib/auth-store.js"
+import { planOpencodeProviders } from "../bin/lib/setup-opencode-providers.js"
 import { teardownRoots } from "./teardown.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
@@ -209,7 +210,8 @@ describe("omo setup opencode custom provider import", () => {
         expect(result.stdout).toContain("@ai-sdk/google")
         expect(result.stdout).toContain("provider openai ")
         expect(result.stdout).toContain("custom provider hosted has no fixed baseURL")
-        expect(result.stdout).toContain("planned-providers: acme\n")
+        expect(result.stdout).toContain("providers-imported: acme\n")
+        expect(planOpencodeProviders({ home: item.home, env: { XDG_CONFIG_HOME: item.configHome, XDG_DATA_HOME: item.dataHome } }).skipped).toEqual(["gemini", "hosted", "openai"])
       })
     })
   })
@@ -243,7 +245,8 @@ describe("omo setup opencode custom provider import", () => {
         expect(second.status).toBe(0)
         expect(["models.json", "auth.json"].map((name) => readFileSync(join(item.agentDir, name), "utf8"))).toEqual(bytes)
         expect(readdirSync(item.agentDir).filter((name) => name.includes(".bak-"))).toEqual(backups)
-        expect(second.stdout).toContain("providers-skipped-existing: acme, fresh")
+        expect(second.stdout).toContain("providers-imported: none")
+        expect(second.stdout).toContain("providers-skipped-existing: 2")
       })
     })
   })
@@ -292,6 +295,23 @@ describe("omo setup opencode custom provider import", () => {
     })
   })
 
+  describe("#given a custom provider id the credential stage also imports a key for", () => {
+    describe("#when setup is accepted", () => {
+      test("#then the key the credential stage wrote in the same run is kept, not overwritten", () => {
+        // claude-sdk-oauth maps to anthropic-subscription, which is not a builtin id to the provider stage.
+        const item = fixture()
+        const provider = { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://x.example/v1", apiKey: "provider-key" }, models: { m: {} } }
+        opencode(item, { provider: { "anthropic-subscription": provider } }, { "claude-sdk-oauth": { type: "api", key: "credential-key" } })
+
+        const result = run(item, ["setup", "--yes"])
+
+        expect(result.status).toBe(0)
+        expect(readJson(join(item.agentDir, "auth.json"))).toEqual({ "anthropic-subscription": { type: "api_key", key: "credential-key" } })
+        expect(result.stdout).toContain("provider-keys-imported: 0")
+      })
+    })
+  })
+
   describe("#given a custom provider and no consent", () => {
     describe("#when setup is a dry run or runs non-interactively without --yes", () => {
       test("#then the provider is previewed and nothing is written", () => {
@@ -303,7 +323,9 @@ describe("omo setup opencode custom provider import", () => {
         const declined = run(item, ["setup"])
 
         expect(dry.stdout).toContain("planned-providers: acme")
-        expect(declined.stdout).toContain("planned-providers: acme")
+        // The summary names the provider; no stage reports an import.
+        expect(declined.stdout).toContain("acme")
+        expect(declined.stdout).not.toContain("providers-imported")
         expect(existsSync(join(item.agentDir, "models.json"))).toBe(false)
         expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
       })
