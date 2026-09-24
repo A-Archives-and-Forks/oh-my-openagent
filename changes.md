@@ -1,3 +1,7 @@
+## 2026-09-24 - omo-senpi component info logs stay off stderr unless OMO_DEBUG is set
+
+`packages/omo-senpi/src/extension/compose.ts` `defaultLogger.info` printed every component diagnostic through `console.error`, so `omo -p` / `--mode json` dumped objects (ulw-loop skip, ulw-execute-continuation skip, model-profile selection) onto the user's stderr. `info` is now silent unless `OMO_DEBUG` is set (the same switch the bun launcher shim already uses); `warn` and `error` still go to stderr; stdout is still unused (#8564). The model-profile selection sentence already reaches the user through the engine notice (`pi.sendMessage`); the extra object dump is the debug line. Documented in `docs/reference/configuration.md`. Fixes #8819.
+
 ## 2026-09-24 - "Restart to apply" actually applies: stale OpenCode plugin sandboxes are invalidated (#8801)
 
 OpenCode installs every npm plugin into `<opencode cache>/packages/<spec>/node_modules/<package>` and its `Npm.add()` returns that copy as soon as it exists, without re-resolving the tag. A moving tag (`@latest`, `@beta`, or a bare name, which OpenCode expands to `<name>@latest`) therefore froze at the first version installed: users on 4.19.4 never received 5.x, beta users stayed on the beta they first installed, and neither restarting OpenCode nor re-running the installer changed it - only deleting the sandbox by hand did. The update checker detected that sandbox (#4535 / #4318) and stopped claiming "Updated!", but its "Restart to apply" toast was still a promise nothing kept.

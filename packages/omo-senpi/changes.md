@@ -1,3 +1,7 @@
+## extension: component info logs are silent unless OMO_DEBUG is set
+
+`src/extension/compose.ts` `defaultLogger.info` no longer writes to stderr unless `OMO_DEBUG` is set. `warn`/`error` unchanged; stdout still unused (#8564). Call sites such as ulw-loop skip and model-profile selection stay as `logger.info`; the model-profile user sentence already goes through `pi.sendMessage`. `compose.test.ts` covers silent-by-default, printed-with-switch, warn-always, nothing on stdout. omo#8819.
+
 ## skills: the hyperplan restart hint names the brand command
 
 `skills/hyperplan/SKILL.md` told the user to "Restart senpi without `--no-omo-task`". On OmO
