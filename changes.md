@@ -1,4 +1,4 @@
-## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest
+## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest (#8799)
 
 `docs/guide/installation.md` rewrites the import stage of the `omo setup` section. It now says that a credential whose provider id differs between harnesses is still imported when the endpoint matches (opencode's `zai-coding-plan` key lands on the `zai` provider), and that a skipped credential comes with the command that fixes it: start `omo` and run `/login <provider>` for an OAuth login, or define the provider and its baseUrl in the engine's `models.json` and then `/login` it for an API key nothing serves. The old text pointed at `omo auth`, which only prints or checks credentials that already exist and cannot sign anyone in. Implementation detail lives in `packages/omo-native/changes.md`.
 
