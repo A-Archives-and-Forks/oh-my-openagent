@@ -1,4 +1,4 @@
-## 2026-09-24 - omo update runs the detected package-manager command
+## 2026-09-24 - omo update runs the detected package-manager command (#8830)
 
 ### What changed
 

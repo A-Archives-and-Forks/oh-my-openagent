@@ -1,4 +1,4 @@
-## 2026-09-24 - omo update actually runs the detected package-manager command
+## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
 
 `omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
 
