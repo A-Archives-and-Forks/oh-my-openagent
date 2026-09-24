@@ -1,4 +1,4 @@
-## 2026-09-24 - Kibitzer reports an unconfigured recall category as a configuration notice, not a repeating gate failure (#8800)
+## 2026-09-24 - Kibitzer reports an unconfigured recall category as a configuration notice, not a repeating gate failure (#8811)
 
 When no connected provider serves the `memory.recall.category` chain, the Kibitzer sidecar refused to
 start and that refusal was retried, counted, and escalated as `✗ Kibitzer gate failed · start_failed ...
