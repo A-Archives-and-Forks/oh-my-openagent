@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
+import { doctorCoverageLines } from "./category-coverage.js"
 import { runDaemonCommand } from "./daemon.js"
 import { runDoctor } from "./doctor.js"
 import { ensureEnginePrepared } from "./engine-prepare.js"
@@ -219,7 +220,8 @@ export async function runLauncher(args = process.argv.slice(2)) {
     return
   }
   if (command === "doctor") {
-    runDoctor(await detectHarnesses(), args.slice(1), { daemonEngine: { run: engineHostCall } })
+    const categoryCoverage = args[1] === "--reap" ? [] : await doctorCoverageLines({ agentDir: canonicalAgentDir() })
+    runDoctor(await detectHarnesses(), args.slice(1), { daemonEngine: { run: engineHostCall }, categoryCoverage })
     return
   }
   if (command === "setup") {

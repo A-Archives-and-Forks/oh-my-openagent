@@ -434,6 +434,7 @@ export function runDoctor(inventory, args = [], options = {}) {
   lines.push(...retiredPayloadReport(options))
   lines.push(...transientMemoryReport(options))
   lines.push(...daemonReport(options))
+  lines.push(...(options.categoryCoverage ?? []))
   if (needsSetupSuggestion(inventory)) {
     lines.push("INFO no credentials found; run omo setup to review sibling stores")
   }
