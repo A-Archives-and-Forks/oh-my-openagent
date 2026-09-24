@@ -1,3 +1,15 @@
+## 2026-09-24 - native GLM chains pick an imported zai key (#8827)
+
+OmO Native builtin model profiles and senpi-task category chains named OpenCode's `zai-coding-plan` provider, which the pinned engine does not register (engine ids are `zai` and `zai-coding-cn`). After `omo setup` imports that key as `zai` (#8799), Recommended (ranked providers only) and Daily · Normal never selected `glm-5.3` even when `/model` listed `zai/glm-5.3`. Native `GLM_PROVIDERS` and the `unspecified-high` category GLM rung now list `zai`, `zai-coding-cn`, `opencode-go`. `kimi-for-coding` stays next to engine `kimi-coding` because those native arrays copy the senpi-task category pair (leftover OpenCode-id key); they are not shared with the OpenCode edition, which keeps its own table in `packages/model-core`. A test loads the pinned senpi's `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and fails if a chain provider id is neither an engine id nor an allow-listed alias.
+
+||||||| e1693d8b4
+
+||||||| ed0fb0601
+
+||||||| f9843a842
+
+||||||| 2a04ce61b
+
 ## 2026-09-24 - omo doctor reports the OpenCode-edition migration leftovers (#8831)
 
 `omo doctor` said nothing about the machine it had just been migrated from: an `omo` earlier on PATH than omo-ai's, the legacy `oh-my-openagent` / `oh-my-opencode` package still installed globally (the one whose `npm uninstall -g` can take omo-ai's `omo` with it, #8793), and the OpenCode plugin still registered in the OpenCode config. `packages/omo-native/bin/lib/doctor-migration.js` is new and adds three report-only checks, printed right after the `INFO Update:` line; `doctor.js` only imports and calls it.
@@ -13,7 +25,6 @@ Nothing is deleted or rewritten. `runDoctor` options gain `env` / `homeDir` / `p
 ||||||| ed0fb0601
 
 ||||||| 07452eda9
-
 ## 2026-09-24 - omo-senpi component info logs stay off stderr unless OMO_DEBUG is set (#8826)
 
 `packages/omo-senpi/src/extension/compose.ts` `defaultLogger.info` printed every component diagnostic through `console.error`, so `omo -p` / `--mode json` dumped objects (ulw-loop skip, ulw-execute-continuation skip, model-profile selection) onto the user's stderr. `info` is now silent unless `OMO_DEBUG` is set (the same switch the bun launcher shim already uses); `warn` and `error` still go to stderr; stdout is still unused (#8564). The model-profile selection sentence already reaches the user through the engine notice (`pi.sendMessage`); the extra object dump is the debug line. Documented in `docs/reference/configuration.md`. Fixes #8819.
@@ -21,7 +32,6 @@ Nothing is deleted or rewritten. `runDoctor` options gain `env` / `homeDir` / `p
 ||||||| e1693d8b4
 
 ||||||| ed0fb0601
-
 ## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
 
 `omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).

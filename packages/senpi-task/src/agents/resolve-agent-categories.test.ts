@@ -191,7 +191,7 @@ describe("resolveAgent category stage", () => {
   test("#given a category whose head model is unavailable #when a later rung wins #then requested_model is the selected model, not the head", () => {
     // given: unspecified-high's head is anthropic/claude-opus-5-5; only its glm-5.3 rung exists here.
     const definition: AgentDefinition = { name: "probe", categories: ["unspecified-high"] }
-    const glmOnlyRegistry = registry([model("zai-coding-plan", "glm-5.3")])
+    const glmOnlyRegistry = registry([model("zai", "glm-5.3")])
 
     // when
     const resolution = resolveAgent("probe", { probe: definition }, glmOnlyRegistry)
@@ -199,12 +199,12 @@ describe("resolveAgent category stage", () => {
     // then: the retry chain must lead with the model the child actually runs.
     expect(resolution.kind).toBe("resolved")
     if (resolution.kind !== "resolved") return
-    expect(resolution.model).toBe("zai-coding-plan/glm-5.3")
-    expect(resolution.requested_model?.display).toBe("zai-coding-plan/glm-5.3")
+    expect(resolution.model).toBe("zai/glm-5.3")
+    expect(resolution.requested_model?.display).toBe("zai/glm-5.3")
     // The unavailable head may still ride the retry tail (it can come back), but never ahead of
     // the model the child actually runs.
     const chain = [resolution.requested_model, ...(resolution.fallback_models ?? [])]
-    expect(chain[0]?.display).toBe("zai-coding-plan/glm-5.3")
+    expect(chain[0]?.display).toBe("zai/glm-5.3")
   })
 
   test("#given a malformed available-model container #when find still resolves the category model #then the agent keeps the find-only fallback", () => {
