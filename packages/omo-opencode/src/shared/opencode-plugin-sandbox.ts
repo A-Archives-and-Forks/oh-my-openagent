@@ -1,4 +1,4 @@
-import { existsSync, realpathSync, renameSync, rmSync } from "node:fs"
+import { existsSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
 
 import { log } from "./logger"
@@ -18,6 +18,14 @@ import { ACCEPTED_PACKAGE_NAMES } from "./plugin-identity"
  */
 
 const SANDBOX_PARENT_DIR = "packages"
+/**
+ * Written into a sandbox to request its refresh. The request has to live on
+ * disk: the thread that detects the update (the server plugin, which in the
+ * TUI runs inside a Worker that never emits `exit`) is not the thread that
+ * gets to run exit handlers (the TUI plugin on the main thread). OpenCode
+ * ignores the file; a reinstall starts from a fresh directory without it.
+ */
+const REFRESH_MARKER_FILE = ".omo-refresh-pending"
 
 export function getPluginSandboxRoot(cacheDir: string): string {
   return join(cacheDir, SANDBOX_PARENT_DIR)
@@ -88,4 +96,16 @@ export function removePluginSandbox(dir: string, cacheDir: string): boolean {
     log(`[plugin-sandbox] Refreshed ${dir}, but could not delete the discarded copy ${discarded}: ${error.message}`)
   }
   return true
+}
+
+/** Requests a refresh of our sandbox; the next exit handler that sees it removes the sandbox. */
+export function markPluginSandboxStale(dir: string, cacheDir: string): boolean {
+  if (!isPluginSandboxDir(dir, cacheDir)) return false
+  if (!existsSync(dir)) return false
+  writeFileSync(join(dir, REFRESH_MARKER_FILE), "")
+  return true
+}
+
+export function isPluginSandboxMarkedStale(dir: string): boolean {
+  return existsSync(join(dir, REFRESH_MARKER_FILE))
 }

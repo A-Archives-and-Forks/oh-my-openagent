@@ -1,6 +1,15 @@
+import { basename, dirname } from "node:path"
+import { fileURLToPath } from "node:url"
+
 import { log } from "../../../shared/logger"
 import { getOpenCodeCacheDir } from "../../../shared/data-path"
-import { isPluginSandboxDir, removePluginSandbox } from "../../../shared/opencode-plugin-sandbox"
+import {
+  isPluginSandboxDir,
+  isPluginSandboxMarkedStale,
+  markPluginSandboxStale,
+  removePluginSandbox,
+} from "../../../shared/opencode-plugin-sandbox"
+import { findPackageJsonUp } from "./package-json-locator"
 
 /**
  * Makes "restart to apply" true for a plugin running from an OpenCode-managed
@@ -13,11 +22,16 @@ import { isPluginSandboxDir, removePluginSandbox } from "../../../shared/opencod
  *
  * Removal waits for process exit because the live session still reads from
  * that directory — bundled skills, the `./tui` export, provisioned binaries
- * and any lazily imported chunk all resolve inside it. Once `exit` fires the
- * event loop is drained and nothing can import from it again. A process that
- * dies from a signal never emits `exit`; that costs nothing, because the next
- * start runs the same check and schedules the removal again (and the
- * installer clears the sandbox outright).
+ * and any lazily imported chunk all resolve inside it.
+ *
+ * Detection and removal run in different threads. In the TUI, OpenCode runs
+ * the server plugin (and so this checker) inside a Worker it stops with
+ * `worker.terminate()`, and a terminated Worker never emits `exit`. Only the
+ * main thread, where the TUI plugin (`./tui`) lives, runs exit handlers. So the
+ * checker records the request as a marker file in the sandbox, and every
+ * plugin entry point loaded from a sandbox (server and TUI) registers the
+ * exit handler that acts on it. A process that dies from a signal runs no
+ * handler; the marker stays and the next exit applies it.
  */
 
 export interface SandboxRefreshDeps {
@@ -27,7 +41,59 @@ export interface SandboxRefreshDeps {
   cacheDir?: string
 }
 
-const scheduledSandboxDirs = new Set<string>()
+const trackedSandboxDirs = new Set<string>()
+
+/**
+ * The OpenCode plugin sandbox the module at `moduleUrl` was loaded from, or
+ * null for any other layout (project or global install, linked checkout,
+ * source tree).
+ */
+export function getLoadedPluginSandboxDir(moduleUrl: string, cacheDir: string = getOpenCodeCacheDir()): string | null {
+  const packageJsonPath = findPackageJsonUp(dirname(fileURLToPath(moduleUrl)))
+  if (!packageJsonPath) return null
+  const nodeModulesDir = dirname(dirname(packageJsonPath))
+  if (basename(nodeModulesDir) !== "node_modules") return null
+  const workspace = dirname(nodeModulesDir)
+  return isPluginSandboxDir(workspace, cacheDir) ? workspace : null
+}
+
+function refreshMarkedSandbox(sandboxDir: string, cacheDir: string): void {
+  try {
+    if (!isPluginSandboxMarkedStale(sandboxDir)) return
+    const removed = removePluginSandbox(sandboxDir, cacheDir)
+    log(
+      removed
+        ? `[auto-update-checker] Removed stale OpenCode plugin sandbox on exit: ${sandboxDir}`
+        : `[auto-update-checker] OpenCode plugin sandbox already gone: ${sandboxDir}`,
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`[auto-update-checker] Failed to remove OpenCode plugin sandbox ${sandboxDir}: ${message}`)
+  }
+}
+
+/** Registers the exit handler that removes the sandbox if a refresh was requested. */
+export function trackPluginSandbox(sandboxDir: string, deps: SandboxRefreshDeps = {}): boolean {
+  const cacheDir = deps.cacheDir ?? getOpenCodeCacheDir()
+  if (!isPluginSandboxDir(sandboxDir, cacheDir)) return false
+  if (trackedSandboxDirs.has(sandboxDir)) return true
+  trackedSandboxDirs.add(sandboxDir)
+
+  const onExit = deps.onExit ?? ((callback: () => void) => process.once("exit", callback))
+  onExit(() => refreshMarkedSandbox(sandboxDir, cacheDir))
+  return true
+}
+
+/** Entry-point helper for the server and TUI plugins: track the sandbox this bundle runs from, if any. */
+export function trackLoadedPluginSandbox(moduleUrl: string = import.meta.url): void {
+  try {
+    const sandboxDir = getLoadedPluginSandboxDir(moduleUrl)
+    if (sandboxDir) trackPluginSandbox(sandboxDir)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`[auto-update-checker] Could not track the OpenCode plugin sandbox: ${message}`)
+  }
+}
 
 export function scheduleOpenCodeSandboxRefreshOnExit(sandboxDir: string, deps: SandboxRefreshDeps = {}): void {
   const cacheDir = deps.cacheDir ?? getOpenCodeCacheDir()
@@ -36,22 +102,13 @@ export function scheduleOpenCodeSandboxRefreshOnExit(sandboxDir: string, deps: S
     return
   }
 
-  if (scheduledSandboxDirs.has(sandboxDir)) return
-  scheduledSandboxDirs.add(sandboxDir)
-
-  const onExit = deps.onExit ?? ((callback: () => void) => process.once("exit", callback))
-  onExit(() => {
-    try {
-      const removed = removePluginSandbox(sandboxDir, cacheDir)
-      log(
-        removed
-          ? `[auto-update-checker] Removed stale OpenCode plugin sandbox on exit: ${sandboxDir}`
-          : `[auto-update-checker] OpenCode plugin sandbox already gone: ${sandboxDir}`,
-      )
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      log(`[auto-update-checker] Failed to remove OpenCode plugin sandbox ${sandboxDir}: ${message}`)
-    }
-  })
+  try {
+    markPluginSandboxStale(sandboxDir, cacheDir)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`[auto-update-checker] Could not request a refresh of OpenCode plugin sandbox ${sandboxDir}: ${message}`)
+    return
+  }
+  trackPluginSandbox(sandboxDir, { ...deps, cacheDir })
   log(`[auto-update-checker] Scheduled OpenCode plugin sandbox refresh on exit: ${sandboxDir}`)
 }

@@ -2,9 +2,10 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { pathToFileURL } from "node:url"
 
-import { getPluginSandboxRoot } from "../../../shared/opencode-plugin-sandbox"
-import { scheduleOpenCodeSandboxRefreshOnExit } from "./sandbox-refresh"
+import { getPluginSandboxRoot, markPluginSandboxStale } from "../../../shared/opencode-plugin-sandbox"
+import { getLoadedPluginSandboxDir, scheduleOpenCodeSandboxRefreshOnExit, trackPluginSandbox } from "./sandbox-refresh"
 
 const tempDirs: string[] = []
 
@@ -92,5 +93,64 @@ describe("scheduleOpenCodeSandboxRefreshOnExit", () => {
 
     // when / then
     expect(() => callbacks[0]?.()).not.toThrow()
+  })
+
+  test("#given the update was detected in another thread #when the tracking thread exits #then it applies the refresh requested on disk", () => {
+    // given - OpenCode's TUI runs the server plugin in a Worker that never
+    // emits exit; the TUI plugin on the main thread only tracks the sandbox
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+    const mainThread = exitRecorder()
+    trackPluginSandbox(sandboxDir, { onExit: mainThread.onExit, cacheDir })
+
+    // when - the worker requests the refresh, then the main thread exits
+    markPluginSandboxStale(sandboxDir, cacheDir)
+    mainThread.callbacks[0]?.()
+
+    // then
+    expect(existsSync(sandboxDir)).toBe(false)
+  })
+
+  test("#given a tracked sandbox nobody asked to refresh #when the process exits #then it is left alone", () => {
+    // given
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@beta")
+    const { callbacks, onExit } = exitRecorder()
+    trackPluginSandbox(sandboxDir, { onExit, cacheDir })
+
+    // when
+    callbacks[0]?.()
+
+    // then
+    expect(existsSync(sandboxDir)).toBe(true)
+  })
+})
+
+describe("getLoadedPluginSandboxDir", () => {
+  function installPackage(workspace: string): string {
+    const pkgDir = join(workspace, "node_modules", "oh-my-openagent")
+    mkdirSync(join(pkgDir, "dist"), { recursive: true })
+    writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "oh-my-openagent", version: "4.19.4" }))
+    writeFileSync(join(pkgDir, "dist", "tui.js"), "")
+    return pathToFileURL(join(pkgDir, "dist", "tui.js")).href
+  }
+
+  test("#given a bundle loaded from an OpenCode sandbox #when resolving #then it returns the sandbox dir", () => {
+    // given
+    const cacheDir = tempDir()
+    const sandboxDir = join(getPluginSandboxRoot(cacheDir), "oh-my-openagent@latest")
+    const moduleUrl = installPackage(sandboxDir)
+
+    // when / then
+    expect(getLoadedPluginSandboxDir(moduleUrl, cacheDir)).toBe(sandboxDir)
+  })
+
+  test("#given a bundle loaded from a project node_modules #when resolving #then there is no sandbox to refresh", () => {
+    // given
+    const cacheDir = tempDir()
+    const moduleUrl = installPackage(join(tempDir(), "my-project"))
+
+    // when / then
+    expect(getLoadedPluginSandboxDir(moduleUrl, cacheDir)).toBeNull()
   })
 })
