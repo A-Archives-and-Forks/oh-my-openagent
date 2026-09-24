@@ -184,7 +184,7 @@ A pass that surfaces a defect goes back to step one of the loop, not into the re
 </verification>`;
 
   const communicationBlock = `<communication>
-Every sentence carries information the user does not already have. Never restate the task back, never narrate routine tool calls, no flattery or filler.
+Every sentence carries information the user does not already have: never narrate routine tool calls, no flattery or filler.
 
 At a handoff - turn start (after the intent line), a todo phase change, a blocker or plan change, the final message - first work out what the user asked for and what they need to know now, then open with one block:
 
