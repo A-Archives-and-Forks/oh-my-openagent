@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 
-import { getStats, resetStatsCacheForTests } from "./stats"
+import { FALLBACK_STATS_DATA, formatStats, getStats, resetStatsCacheForTests } from "./stats"
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -93,5 +93,22 @@ describe("getStats aggregation is all-or-nothing", () => {
     const { calls } = installFetch({ onPoint: () => 1 })
     await getStats()
     expect(calls().some((url) => /\/omo-ai(\?|$)/.test(url))).toBe(true)
+  })
+
+  test("the Codex edition lazycodex-ai is part of the download aggregate", async () => {
+    installFetch({ onPoint: (_period, pkg) => (pkg === "lazycodex-ai" ? 1_000 : 0) })
+    const stats = await getStats()
+    expect(stats.weeklyDownloads).toBe(1_000)
+    expect(stats.monthlyDownloads).toBe(1_000)
+  })
+})
+
+describe("formatStats", () => {
+  test.each([
+    [3_894_680, "3.8M+"],
+    [4_032_665, "4M+"],
+    [1_000_000, "1M+"],
+  ])("floors %d to %s so the plus sign is true", (totalDownloads, label) => {
+    expect(formatStats({ ...FALLBACK_STATS_DATA, totalDownloads }).totalDownloads).toBe(label)
   })
 })
