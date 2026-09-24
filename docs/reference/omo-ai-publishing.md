@@ -108,7 +108,7 @@ Machines that still carry a pre-rename root package (oh-my-openagent or oh-my-op
 2. It installs `omo-ai@beta` with bun, or npm when bun is absent.
 3. It runs the resolved `omo --version` and requires the answer to come from omo-ai. If another `omo` still resolves first, or omo-ai landed in a directory that is not on PATH, it prints the exact `export PATH=...` fix instead of claiming success.
 
-By hand, the equivalent is: remove `<prefix>/bin/omo` (or uninstall the old package), then `npm i -g omo-ai@beta`. Machines already on a renamed release have no global `omo` and install cleanly in one step.
+By hand, the equivalent is: remove `<prefix>/bin/omo` (or uninstall the old package), then `npm i -g omo-ai@beta`. Uninstalling the old package after omo-ai is in place is not symmetric: `npm uninstall -g oh-my-openagent` unlinks every bin name that package declares, so it also deletes the `omo` in the npm bin dir that npm-installed omo-ai now owns (the installer prints this note on the npm path); reinstall with `npm i -g omo-ai@beta` afterwards. `bun remove -g` keeps a bin another package owns. Machines already on a renamed release have no global `omo` and install cleanly in one step.
 
 ## Runtime selection (bun wherever it exists)
 

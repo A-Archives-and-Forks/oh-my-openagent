@@ -88,10 +88,25 @@ export async function runNativeInstall(
     return failed(error instanceof Error ? error.message : String(error))
   }
 
+  // npm unlinks every bin name a package declares when it is uninstalled, whoever owns the file now,
+  // so uninstalling the old package later takes omo-ai's `omo` from the shared npm bin dir with it.
+  // bun keeps a bin another package owns, so only the npm path needs this.
+  if (plan.packageManager === "npm") {
+    for (const name of new Set(repair.removed.map((removal) => removal.packageName))) {
+      if (NPM_LEGACY_OMO_PACKAGES.includes(name)) notes.push(npmUninstallNote(name, manualCommand))
+    }
+  }
+
   const verification = await verifyOmoCommand({ environment, probeVersion: dependencies.probeVersion })
   notes.push(...verification.notes)
   warnings.push(...verification.warnings)
   return { ok: true, verified: verification.ok, plan, notes, warnings }
+}
+
+const NPM_LEGACY_OMO_PACKAGES: readonly string[] = ["oh-my-openagent", "oh-my-opencode"]
+
+function npmUninstallNote(packageName: string, installCommand: string): string {
+  return `If you later run npm uninstall -g ${packageName}, npm also deletes the omo command omo-ai now owns. Run ${installCommand} again afterwards to restore it.`
 }
 
 export function nativeInstallSuccessLine(): string {

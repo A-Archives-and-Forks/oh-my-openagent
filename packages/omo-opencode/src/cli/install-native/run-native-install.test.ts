@@ -166,6 +166,45 @@ describe("runNativeInstall legacy omo bin", () => {
     expect(outcome.warnings).toEqual([])
   })
 
+  test("#given a legacy npm omo and no bun #when the native edition is installed #then the note says a later npm uninstall takes omo with it and how to restore it", async () => {
+    // given omo-ai lands in the same npm bin dir the legacy package's omo was removed from
+    const legacy = writeGlobalPackageBin({ root: root("wire-npm-trap"), packageName: "oh-my-openagent", version: "4.19.4" })
+    const { spawn } = recordingSpawn({ exitCode: 0 }, () => {
+      writeGlobalPackageBin({ root: legacy.root, packageName: "omo-ai", version: "5.0.0-0.beta.89" })
+    })
+    const dependencies = {
+      spawn,
+      environment: environmentOf([legacy.binDir]),
+      probeVersion: async () => ({ exitCode: 0, stdout: "omo 5.0.0-0.beta.89\n" }),
+    }
+
+    // when
+    const npmOutcome = await runNativeInstall({ ...dependencies, isBunAvailable: () => false })
+
+    // then
+    const trapNotes = npmOutcome.notes.filter((note) => note.includes("npm uninstall -g oh-my-openagent"))
+    expect(trapNotes).toHaveLength(1)
+    expect(trapNotes[0]).toContain("npm i -g omo-ai@beta")
+    expect(npmOutcome.verified).toBe(true)
+  })
+
+  test("#given a legacy omo and bun #when the native edition is installed #then no npm uninstall note is printed", async () => {
+    // given
+    const legacy = writeGlobalPackageBin({ root: root("wire-bun-no-trap"), packageName: "oh-my-openagent", version: "4.19.4" })
+    const { spawn } = recordingSpawn({ exitCode: 0 })
+
+    // when
+    const outcome = await runNativeInstall({
+      isBunAvailable: () => true,
+      spawn,
+      environment: environmentOf([legacy.binDir]),
+      probeVersion: probeMissing,
+    })
+
+    // then
+    expect(outcome.notes.some((note) => note.includes("npm uninstall -g"))).toBe(false)
+  })
+
   test("#given an unrelated omo keeps resolving first #when the native edition is installed #then the install still succeeds and the PATH fix is reported", async () => {
     // given
     const foreign = writeGlobalPackageBin({ root: root("wire-foreign"), packageName: "omo-tools", version: "1.2.3" })

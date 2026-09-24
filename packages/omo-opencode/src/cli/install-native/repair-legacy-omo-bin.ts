@@ -52,7 +52,7 @@ export function repairLegacyOmoBins(
         packageVersion: entry.packageVersion,
       })
       notes.push(
-        `Removed the stale omo command left by ${owner} (${entry.binPath}). That package and its other commands are untouched; reinstall it to get this alias back.`,
+        `Removed the stale omo command left by ${owner} (${entry.binPath}). That package and its other commands are untouched; reinstalling it would put its omo back in front of omo-ai.`,
       )
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
