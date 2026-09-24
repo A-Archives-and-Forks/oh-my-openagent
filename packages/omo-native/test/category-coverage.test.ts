@@ -11,6 +11,8 @@ import {
   formatDoctorCoverageLines,
   setupCoverage,
 } from "../bin/lib/category-coverage.js"
+import { runDoctor } from "../bin/lib/doctor.js"
+import { runSetup } from "../bin/lib/setup-import.js"
 import { formatSetupSummary } from "../bin/lib/setup-summary.js"
 import { teardownRoots } from "./teardown.test-support"
 
@@ -44,9 +46,21 @@ function sandbox(auth?: Record<string, unknown>): { home: string, agentDir: stri
 
 async function coverageFor(provider: string) {
   const { home, agentDir } = sandbox({ [provider]: { type: "api_key", key: "dummy" } })
-  const models = await engineAvailableModels({ agentDir })
+  const models = await engineAvailableModels({ agentDir, cwd: home })
   const coverage = await categoryCoverage({ models, cwd: home, env: { HOME: home }, loadRuntime })
   return { models, coverage, agentDir }
+}
+
+async function captureStdout(run: () => Promise<void>): Promise<string> {
+  const chunks: string[] = []
+  const original = process.stdout.write
+  process.stdout.write = ((chunk: string | Uint8Array) => { chunks.push(String(chunk)); return true }) as typeof process.stdout.write
+  try {
+    await run()
+  } finally {
+    process.stdout.write = original
+  }
+  return chunks.join("")
 }
 
 function setupPlans(input: { additions: { provider: string, key: string }[], added: unknown[], pinned: string[] }) {
@@ -81,6 +95,31 @@ describe("category coverage from the engine's model list", () => {
     })
   })
 
+  describe("#given no stored credential and a CLAUDE_CODE_OAUTH_TOKEN in the environment", () => {
+    test("#when the model list is built #then the engine's own anthropic-subscription check serves the Claude categories", async () => {
+      const { home, agentDir } = sandbox()
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = "dummy"
+      try {
+        const models = await engineAvailableModels({ agentDir, cwd: home })
+        const coverage = await categoryCoverage({ models, cwd: home, env: { HOME: home }, loadRuntime })
+
+        expect([...new Set(models.map((model) => model.provider))]).toEqual(["anthropic-subscription"])
+        expect(coverage.usable).toContain("architect")
+        expect(readdirSync(agentDir)).toEqual([])
+      } finally {
+        delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+      }
+    })
+  })
+
+  describe("#given an anthropic-subscription entry the engine does not accept as a subscription login", () => {
+    test("#when the model list is built #then anthropic-subscription is not counted", async () => {
+      const { models } = await coverageFor("anthropic-subscription")
+
+      expect(models).toEqual([])
+    })
+  })
+
   describe("#given a setup plan that imports a zai key, a custom provider and a category pin", () => {
     test("#when setup coverage is computed #then the planned credentials, provider and pin all count and nothing is written", async () => {
       const { home, agentDir } = sandbox()
@@ -96,6 +135,44 @@ describe("category coverage from the engine's model list", () => {
       })
 
       expect(coverage?.usable).toEqual(["architect", "artistry", "quick", "unspecified-high", "visual-engineering", "writing"])
+      expect(readdirSync(agentDir)).toEqual([])
+    })
+  })
+})
+
+describe("category coverage reaches the commands", () => {
+  describe("#given coverage lines from the launcher", () => {
+    test("#when doctor runs #then it prints them", () => {
+      const { home } = sandbox()
+      const output: string[] = []
+      const originalLog = console.log
+      const originalExitCode = process.exitCode
+      console.log = (value?: unknown) => { output.push(String(value)) }
+      try {
+        runDoctor({ harnesses: [] }, [], {
+          list: () => [],
+          env: { HOME: home },
+          fetchDistTags: () => ({ beta: "0.0.0-test" }),
+          categoryCoverage: ["WARN task categories: SENTINEL"],
+        })
+      } finally {
+        console.log = originalLog
+        process.exitCode = originalExitCode ?? 0
+      }
+      expect(output.join("\n").split("\n")).toContain("WARN task categories: SENTINEL")
+    })
+  })
+
+  describe("#given an OpenCode login with only a Z.AI key", () => {
+    test("#when omo setup --dry-run runs #then its summary carries the categories row and nothing is written", async () => {
+      const { home, agentDir } = sandbox()
+      mkdirSync(join(home, ".local", "share", "opencode"), { recursive: true })
+      writeFileSync(join(home, ".local", "share", "opencode", "auth.json"), JSON.stringify({ "zai-coding-plan": { type: "api", key: "dummy" } }))
+
+      const stdout = await captureStdout(() => runSetup(["--dry-run"], { home, env: { HOME: home }, loadCoverageRuntime: loadRuntime }))
+
+      const rows = stdout.split("\n").filter((line) => /^ {2}\S/.test(line)).map((line) => line.slice(2, 16).trim())
+      expect(rows).toContain("categories")
       expect(readdirSync(agentDir)).toEqual([])
     })
   })

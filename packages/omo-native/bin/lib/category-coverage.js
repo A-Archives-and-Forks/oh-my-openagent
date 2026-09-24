@@ -17,21 +17,40 @@ import { packageRoot, resolveSenpi } from "./package-paths.js"
 
 export const COVERAGE_RUNTIME = join("plugin", "runtime", "category-coverage", "index.js")
 
-// Registered by the engine's anthropic-subscription extension, not the catalog; it serves the
-// anthropic catalog ids (extensions/builtin/anthropic-subscription/index.js `getModels("anthropic")`)
-// and reads its own stored credential (same file, `readStoredCredential(ANTHROPIC_SUBSCRIPTION_PROVIDER_ID)`).
-const ANTHROPIC_SUBSCRIPTION = "anthropic-subscription"
-
 async function loadEngine() {
   const core = join(resolveSenpi().packageRoot, "dist", "core")
   const load = (name) => import(pathToFileURL(join(core, name)).href)
-  const [runtime, auth, store] = await Promise.all([load("model-runtime.js"), load("auth-storage.js"), load("models-store.js")])
+  const subscriptionDir = join("extensions", "builtin", "anthropic-subscription")
+  const [runtime, auth, store, settings, subscription, subscriptionSettings] = await Promise.all([
+    load("model-runtime.js"),
+    load("auth-storage.js"),
+    load("models-store.js"),
+    load("settings-manager.js"),
+    load(join(subscriptionDir, "index.js")),
+    load(join(subscriptionDir, "settings.js")),
+  ])
   return {
     ModelRuntime: runtime.ModelRuntime,
     AuthStorage: auth.AuthStorage,
     ReadOnlyAuthStorage: auth.ReadOnlyAuthStorage,
     InMemoryCodingAgentModelsStore: store.InMemoryCodingAgentModelsStore,
+    SettingsManager: settings.SettingsManager,
+    registerAnthropicSubscription: subscription.registerAnthropicSubscriptionExtension,
+    loadAnthropicSubscriptionSettings: subscriptionSettings.loadAnthropicSubscriptionProviderSettings,
   }
+}
+
+// anthropic-subscription is the one chain provider a builtin extension registers instead of the
+// catalog. Its registration carries its own availability check (stored accounts,
+// CLAUDE_CODE_OAUTH_TOKEN* env tokens, an opted-in ambient Claude login), so the provider config
+// is captured from the extension itself and registered on the runtime, as a session does. The
+// extension's commands and session hooks are not needed here and are dropped. Its settings are
+// read from the inspected agent dir (the extension's default reads the engine's own default dir).
+function extensionProviders(register) {
+  const providers = []
+  const capture = (name, config) => { providers.push([name, config]) }
+  register(new Proxy({}, { get: (_, key) => key === "registerProvider" ? capture : () => undefined }))
+  return providers
 }
 
 async function loadRuntime() {
@@ -44,6 +63,7 @@ async function loadRuntime() {
  *   agentDir: string,
  *   authEntries?: Record<string, unknown>,
  *   modelsDocument?: Record<string, unknown>,
+ *   cwd?: string,
  *   loadEngine?: () => Promise<any>,
  * }} EngineModelsInput
  * @param {EngineModelsInput} input `authEntries` / `modelsDocument` stand in for auth.json /
@@ -65,11 +85,12 @@ export async function engineAvailableModels(input) {
       modelsStore: new engine.InMemoryCodingAgentModelsStore(),
       allowModelNetwork: false,
     })
-    const models = (await runtime.getAvailable()).map((model) => ({ provider: model.provider, id: model.id }))
-    if (await credentials.read(ANTHROPIC_SUBSCRIPTION) !== undefined) {
-      for (const model of runtime.getModels("anthropic")) models.push({ provider: ANTHROPIC_SUBSCRIPTION, id: model.id })
+    const cwd = input.cwd ?? process.cwd()
+    const readSettings = () => engine.loadAnthropicSubscriptionSettings(engine.SettingsManager.create(cwd, input.agentDir))
+    for (const [name, config] of extensionProviders((pi) => engine.registerAnthropicSubscription(pi, { readSettings }))) {
+      await runtime.registerProvider(name, config, { refresh: false })
     }
-    return models
+    return (await runtime.getAvailable()).map((model) => ({ provider: model.provider, id: model.id }))
   } finally {
     if (scratch !== undefined) rmSync(scratch, { recursive: true, force: true })
   }
@@ -137,8 +158,9 @@ export async function doctorCoverageLines(options) {
   try {
     // The runtime first: a payload without it fails fast, before the engine import.
     const runtime = await (options.loadRuntime ?? loadRuntime)()
-    const models = await engineAvailableModels({ agentDir: options.agentDir, loadEngine: options.loadEngine })
-    const coverage = await categoryCoverage({ models, cwd: options.cwd ?? process.cwd(), env: options.env ?? process.env, loadRuntime: async () => runtime })
+    const cwd = options.cwd ?? process.cwd()
+    const models = await engineAvailableModels({ agentDir: options.agentDir, cwd, loadEngine: options.loadEngine })
+    const coverage = await categoryCoverage({ models, cwd, env: options.env ?? process.env, loadRuntime: async () => runtime })
     return formatDoctorCoverageLines(coverage)
   } catch {
     return []
@@ -174,11 +196,12 @@ export async function setupCoverage(input) {
       ...providers.models.document,
       providers: { ...providers.models.document.providers, ...Object.fromEntries(added.map((provider) => [provider.id, provider.config])) },
     }
-    const models = await engineAvailableModels({ agentDir: input.agentDir, authEntries, modelsDocument, loadEngine: input.loadEngine })
+    const cwd = input.cwd ?? process.cwd()
+    const models = await engineAvailableModels({ agentDir: input.agentDir, authEntries, modelsDocument, cwd, loadEngine: input.loadEngine })
     const pinnedCategories = modelChoices.items.filter((item) => item.kind === "categories" && item.state === "pending").map((item) => item.name)
     return await categoryCoverage({
       models,
-      cwd: input.cwd ?? process.cwd(),
+      cwd,
       env: { ...input.env, HOME: input.home },
       pinnedCategories,
       loadRuntime: async () => runtime,
