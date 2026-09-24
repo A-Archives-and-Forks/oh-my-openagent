@@ -1,3 +1,7 @@
+## model-profile: GLM rungs pick engine `zai` / `zai-coding-cn`
+
+`components/model-profile/builtin-profiles.ts`: `GLM_PROVIDERS` is `zai`, `zai-coding-cn`, `opencode-go` instead of OpenCode's `zai-coding-plan`, so Recommended (ranked providers only) and Daily · Normal select an imported `zai` key for `glm-5.3`. `kimi-for-coding` stays next to engine `kimi-coding` because the senpi-task category chains keep that leftover OpenCode id. `model-vocabulary.ts` adds `zai` / `zai-coding-cn` so shipped rungs still export; `zai-coding-plan` remains for older sessions. New `chain-provider-ids.test.ts` loads the pinned engine `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and asserts every builtin-profile and senpi-task category-chain provider id is an engine id or an allow-listed alias. omo#8824.
+
 ## skills: the hyperplan restart hint names the brand command
 
 `skills/hyperplan/SKILL.md` told the user to "Restart senpi without `--no-omo-task`". On OmO

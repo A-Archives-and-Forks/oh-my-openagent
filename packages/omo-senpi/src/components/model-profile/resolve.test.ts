@@ -132,7 +132,7 @@ describe("resolveModelProfile", () => {
     expect(result).toEqual({
       kind: "unavailable",
       profile: DAILY_NORMAL,
-      chain: [OPUS_SUBSCRIPTION, "kimi-coding/kimi-k3", "zai-coding-plan/glm-5.3"],
+      chain: [OPUS_SUBSCRIPTION, "kimi-coding/kimi-k3", "zai/glm-5.3"],
     })
   })
 
@@ -346,5 +346,36 @@ describe("builtin chain routing", () => {
       reasoning: "high",
       skipped: [],
     })
+  })
+
+  it("picks zai/glm-5.3 on recommended when only a zai key serves glm", () => {
+    const result = resolveModelProfile({ active: "recommended", availableModels: ["zai/glm-5.3"] })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "zai",
+      modelId: "glm-5.3",
+      reasoning: "max",
+    })
+  })
+
+  it("picks zai/glm-5.3 on daily-normal when only a zai key serves glm", () => {
+    const result = resolveModelProfile({ active: "daily-normal", availableModels: ["zai/glm-5.3"] })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "zai",
+      modelId: "glm-5.3",
+      reasoning: "max",
+    })
+  })
+
+  it("does not pick OpenCode zai-coding-plan on recommended", () => {
+    const result = resolveModelProfile({
+      active: "recommended",
+      availableModels: ["zai-coding-plan/glm-5.3"],
+    })
+
+    expect(result.kind).toBe("unavailable")
   })
 })
