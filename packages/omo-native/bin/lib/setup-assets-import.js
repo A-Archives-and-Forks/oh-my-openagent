@@ -4,9 +4,18 @@
  * skills into the GLOBAL `<agentDir>/skills` root. A name that already exists is never overwritten.
  */
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { packageRoot } from "./package-paths.js"
 import { planOpencodeAssets } from "./setup-opencode-assets.js"
+
+// The plugin's bundled skills reach the engine through `resources_discover`, which senpi appends
+// after `<agentDir>/skills`, and the first skill of a name wins - so a same-named copy imported
+// into the user root would silently replace the bundled skill in every session.
+function bundledSkillNames(skillsDir) {
+  if (!existsSync(skillsDir)) return new Set()
+  return new Set(readdirSync(skillsDir).filter((name) => existsSync(join(skillsDir, name, "SKILL.md"))))
+}
 
 function readMcpTarget(path) {
   if (!existsSync(path)) return { document: {}, bytes: undefined }
@@ -24,7 +33,7 @@ function readMcpTarget(path) {
   }
 }
 
-function classifyAssets(plan, paths) {
+function classifyAssets(plan, paths, bundled) {
   const target = readMcpTarget(paths.mcp)
   const existingServers = target.malformed ? {} : (target.document.mcpServers ?? {})
   const servers = { added: [], skippedExisting: [], blocked: [] }
@@ -33,9 +42,10 @@ function classifyAssets(plan, paths) {
     else if (Object.hasOwn(existingServers, server.name)) servers.skippedExisting.push(server.name)
     else servers.added.push(server)
   }
-  const skills = { added: [], skippedExisting: [] }
+  const skills = { added: [], skippedExisting: [], skippedBundled: [] }
   for (const skill of plan.skills) {
     if (existsSync(join(paths.skills, skill.name))) skills.skippedExisting.push(skill.name)
+    else if (bundled.has(skill.name)) skills.skippedBundled.push(skill.name)
     else skills.added.push(skill)
   }
   return { servers, skills, target }
@@ -81,6 +91,7 @@ function formatAssetPlan(result) {
     list("mcp-skipped-existing", result.servers.skippedExisting),
     list("planned-skills", result.skills.added.map((skill) => skill.name)),
     list("skills-skipped-existing", result.skills.skippedExisting),
+    list("skills-skipped-bundled", result.skills.skippedBundled),
   ].join("\n")}\n`
 }
 
@@ -90,6 +101,7 @@ function formatAssetCounts(result) {
     `mcp-skipped-existing: ${result.servers.skippedExisting.length}`,
     `skills-imported: ${result.skills.added.length}`,
     `skills-skipped-existing: ${result.skills.skippedExisting.length}`,
+    `skills-skipped-bundled: ${result.skills.skippedBundled.length}`,
   ].join("\n")}\n`
 }
 
@@ -102,7 +114,7 @@ export async function importOpencodeAssets(stage) {
   for (const notice of plan.notices) process.stdout.write(`${notice}\n`)
   if (plan.mcpServers.length === 0 && plan.skills.length === 0) return
   const paths = { mcp: join(stage.agentDir, "mcp.json"), skills: join(stage.agentDir, "skills") }
-  const result = classifyAssets(plan, paths)
+  const result = classifyAssets(plan, paths, bundledSkillNames(join(packageRoot, "plugin", "skills")))
   process.stdout.write(formatAssetPlan(result))
   if (stage.args.includes("--dry-run")) return
   const pending = result.servers.added.length + result.skills.added.length

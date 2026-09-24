@@ -176,6 +176,23 @@ describe("omo setup opencode asset import", () => {
     })
   })
 
+  describe("#given an opencode skill named like a skill the omo plugin bundles", () => {
+    describe("#when setup is accepted", () => {
+      test("#then it is not copied over the bundled one and is reported as skipped", () => {
+        const item = fixture()
+        write(join(dirname(dirname(item.launcher)), "plugin", "skills", "git-master", "SKILL.md"), "---\nname: git-master\ndescription: bundled\n---\n")
+        opencode(item, { mcp: {} }, ["git-master", "mine-only"])
+
+        const result = run(item, ["setup", "--yes"])
+
+        expect(result.status).toBe(0)
+        expect(existsSync(join(item.agentDir, "skills", "git-master"))).toBe(false)
+        expect(existsSync(join(item.agentDir, "skills", "mine-only", "SKILL.md"))).toBe(true)
+        expect(result.stdout).toContain("skills-skipped-bundled: git-master")
+      })
+    })
+  })
+
   describe("#given a dry run", () => {
     describe("#when setup previews the assets", () => {
       test("#then nothing is written and the preview names them", () => {
