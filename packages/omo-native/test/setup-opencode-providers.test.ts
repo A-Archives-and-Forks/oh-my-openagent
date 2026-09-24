@@ -190,13 +190,14 @@ describe("omo setup opencode custom provider import", () => {
 
   describe("#given providers omo cannot serve as custom providers", () => {
     describe("#when setup is accepted", () => {
-      test("#then an unsupported npm package and a built-in provider override are reported by name and not written", () => {
+      test("#then an unsupported npm package, a built-in provider override and a url only opencode can expand are reported by name and not written", () => {
         const item = fixture()
         opencode(item, {
           provider: {
             acme: ACME,
             gemini: { npm: "@ai-sdk/google", options: { baseURL: "https://g.example/v1beta" }, models: { g: {} } },
             openai: { options: { baseURL: "https://proxy.example/v1" }, models: { "gpt-x": {} } },
+            hosted: { options: { baseURL: "https://${ACME_HOST}/v1" }, models: { h: {} } },
           },
         })
 
@@ -206,6 +207,7 @@ describe("omo setup opencode custom provider import", () => {
         expect(Object.keys(readJson(join(item.agentDir, "models.json")).providers)).toEqual(["acme"])
         expect(result.stdout).toContain("@ai-sdk/google")
         expect(result.stdout).toContain("provider openai ")
+        expect(result.stdout).toContain("custom provider hosted has no fixed baseURL")
         expect(result.stdout).toContain("planned-providers: acme\n")
       })
     })

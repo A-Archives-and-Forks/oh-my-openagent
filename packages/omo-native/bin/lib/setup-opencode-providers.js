@@ -87,9 +87,10 @@ function convertKey(id, entry, opencodeAuth, notices) {
   return undefined
 }
 
-// A URL still holding a placeholder has no engine spelling: the engine sends baseUrl verbatim.
+// A URL still holding a placeholder has no engine spelling: the engine sends baseUrl verbatim, while
+// OpenCode substitutes `{env:...}` / `{file:...}` into its config and `${NAME}` into the URL itself.
 function fixedUrl(value) {
-  return value !== undefined && !/\{(?:env|file):/.test(value) ? value : undefined
+  return value !== undefined && !/\{(?:env|file):|\$\{/.test(value) ? value : undefined
 }
 
 function convertModel(provider, id, entry, notices) {
