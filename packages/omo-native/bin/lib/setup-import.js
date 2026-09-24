@@ -157,14 +157,15 @@ function printPlan(result, dryRun, providerMap) {
   process.stdout.write(formatCredentialGuidance(result, providerMap))
 }
 
-function printCounts(result, providerMap) {
+// The plan (printed on every run, dry or not) already carries the per-credential guidance, so the
+// closing counts stay counts - printing the sign-in steps twice reads as two different instructions.
+function printCounts(result) {
   process.stdout.write([
     `imported: ${result.additions.length}`,
     `skipped-existing: ${result.skippedExisting.length}`,
     `skipped-oauth: ${result.skippedOauth.length}`,
     `skipped-unmapped: ${result.skippedUnmapped.length}`,
   ].join("\n") + "\n")
-  process.stdout.write(formatCredentialGuidance(result, providerMap))
 }
 
 function timestamp() {
@@ -224,7 +225,7 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   printPlan(result, dryRun, providerMap)
   if (dryRun) return
   if (result.additions.length === 0) {
-    printCounts(result, providerMap)
+    printCounts(result)
     return
   }
   if (!await consent(result, target, { ...runtime, yes: args.includes("--yes") })) {
@@ -232,5 +233,5 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
     return
   }
   writeTarget(target, current, result.additions)
-  printCounts(result, providerMap)
+  printCounts(result)
 }
