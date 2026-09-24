@@ -121,12 +121,12 @@ The habits map like this. Every entry in the right column is a command or key th
 | OpenCode habit | In omo |
 |---|---|
 | `/models` (pick a model) | `/model`, or `Ctrl+L`. `Ctrl+P` cycles to the next model. |
-| `/connect` (sign in to a provider) | `/login <provider>`; `/logout <provider>` to sign out. |
+| `/connect` (sign in to a provider) | `/login <provider>`. `/logout` (no argument) opens a picker of stored logins to sign out of. |
 | `/sessions` (open an earlier session) | `/resume`. `/fork` branches the current one, `/tree` shows the branch tree. |
 | `/new` | `/new` |
 | `/compact` | `/compact`, with optional instructions after it. |
-| `/share` | `/share` |
-| `/export` | `/export` |
+| `/share` | `/share`, which uploads the session as a secret GitHub gist; it needs the `gh` CLI, signed in. |
+| `/export` | `/export` writes an HTML file; `/export <path>.jsonl` writes the raw session instead. |
 | `/help` | `/hotkeys` lists every key; `/settings` opens the settings list. |
 | `/editor` (compose in $EDITOR) | `Ctrl+G` |
 | `/details` (show or hide tool output) | `Ctrl+O` |
