@@ -1,6 +1,13 @@
 ## 2026-09-24 - installation guide: `omo setup` also carries over opencode MCP servers and skills
 
 `docs/guide/installation.md` extends the import stage of the `omo setup` section: alongside credentials, the same stage converts the MCP servers declared in `~/.config/opencode/opencode.json[c]` into the engine's schema and merges them into the global `~/.omo/agent/mcp.json`, and copies global OpenCode skills into `~/.omo/agent/skills/`, with its own preview and confirmation. The text names why both are global rather than per-project, that an existing name is kept and reported, that `mcp.json` is backed up before it is rewritten, and that a server using shell command substitution is refused. Implementation detail lives in `packages/omo-native/changes.md`.
+
+## 2026-09-24 - ulw-research deliverable contract: lane interview, static gates, outcome manifest, bounded repair (#8611)
+
+`packages/shared-skills/skills/ulw-research/scripts/` (new) is a zero-dependency Node CLI, `report-tools.mjs`, dispatching `check`, `layout-probe`, `repair decide`, `outcome init|set|gate|render|state|verify|finish|briefing`, `format-extract` and `--help --json` (exit 0 pass, 1 semantic failure, 2 usage or IO). Modules: `contracts.mjs` (the defect-code table, the only place severities live; enums; manifest and repair-state validators), `outcome.mjs`, `repair-tracker.mjs`, `html-lite.mjs` + `entities.mjs`, `css-lite.mjs`, `design-spec.mjs`, `gates-static.mjs` composing `gates-text.mjs` / `gates-figures.mjs` / `gates-structure.mjs` (G1-G15), `layout-probe.mjs` + `gates-layout.mjs` (L1-L5; the probe is evaluated by the orchestrator through the browser skill's owned headless engine), `format-extract.mjs` + `format-extract-css.mjs`, `cli-support.mjs`, `entry-guard.mjs`, `report-tools-commands.mjs`; every module is at most 250 lines with a co-located bun test. `references/deliverable-phase.md` (new) is the edition-neutral contract (lanes, state, destination defaults, the three-question interview, report-format memory episodes, design spec, gates, repair, manifest, command reference) and `references/report-gates.md` (new) the defect glossary. Both `SKILL.md` editions (`packages/omo-senpi/skills/ulw-research`, `packages/shared-skills/skills/ulw-research`) replace the always-ask format gate and the python briefing one-liner with calls into the CLI; the new skill `AGENTS.md` documents the runtime.
+
+`packages/omo-senpi/plugin/scripts/native-skill-sources.mjs` gives the `ulw-research` entry `sharedAssets` (`scripts`, the two references) and `sync-skills.mjs` overlays them byte-for-byte after the native copy, failing on a missing asset or a native collision; `native-skill-sources.d.mts` (new) types it. `packages/omo-codex/plugin/scripts/sync-skills.mjs` re-anchors the ulw-research overlay on the proofread paragraph (the replacement keeps the visual-QA gate's tail sentence, so it is never empty) with the test-support mirror following. Tests: `skills-sync.test.ts` and the Codex `sync-skills.test.mjs` assert shipped-copy byte equality for the overlaid files; `sync-skills-codex-compatibility.test.mjs` asserts the overlay applies.
+
 ## 2026-09-24 - browser skill installs BrowserSkill only into the browser the user actually uses (#8784)
 
 `package.json` / `bun.lock` move the `omowright` pin to the commit that ships code-yeongyu/omowright#23, and `packages/shared-skills/skills/browser/runtime/omowright` is restaged from it. omowright's `bskOnboard({ browser })` now registers the external extension for exactly one browser picked by `identifyBrowser` (explicit `browser` / `OMOWRIGHT_BROWSER` > the OS default browser when it is also running or used in the last 7 days, or when nothing else is > the only browser in use), and returns `needsChoice: true` with every candidate and its signals, registering nothing, for a Safari/Firefox default, an idle default while another browser runs, several browsers in use, or none; `bskDoctor({ browser })` reports `primary`, `identification` and `registeredElsewhere` (entries an older onboarding left behind - reported, never removed). The catalog adds Arc, Dia, Vivaldi, Opera, Comet and Naver Whale; macOS "running" only counts the app bundle in `/Applications` or `~/Applications`, so automation Chromium builds are ignored.
@@ -646,6 +653,7 @@ shell lookup for bare `tsc` and `bun` commands on Windows. The release builder
 therefore reaches the version-stamping step instead of letting the shell split
 the runtime path at `C:\Program`. The command-policy regression tests cover
 absolute Windows paths, bare package commands, and POSIX execution.
+
 ## 2026-08-27 — Record post-beta.23 merged follow-ups
 
 The root product changelog now records the pull requests merged after the
@@ -898,6 +906,7 @@ from the machine.
 **A future refactor or sync must not break:** attribution must never derive from hostname,
 hardware, or accounts; keep both capture paths (session client + facade) attributed or events
 disagree about their own schema.
+
 ## 2026-08-20 — Demand parent-side verification of DAG completions
 
 A DAG node's completion summary was delivered to the orchestrating parent as if
@@ -1094,6 +1103,7 @@ budget a test grants a subprocess or timed promise; `test/test-timeout-budget.te
 reads both the configured value and the real budgets out of the test sources and
 fails if that ordering is ever reintroduced. Keep the bound proportionate: it
 exists to survive a cold Windows process spawn, not to hide a genuine hang.
+
 ## 2026-09-06 — Keep lead polling alive through runtime access windows
 
 Lead polling now suppresses repeated `EPERM` and `EACCES` runtime-directory errors, reports the first unavailable transition and the subsequent recovery, and leaves mailbox state untouched while the runtime directory cannot be enumerated. Mailbox reads and missing-directory handling remain unchanged.

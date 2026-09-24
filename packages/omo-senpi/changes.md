@@ -3,6 +3,20 @@
 `skills/onboarding/SKILL.md` lane 2 (migration help) now tells the guide that global OpenCode MCP servers and global OpenCode skills are `omo setup`'s job: it imports them into `~/.omo/agent/mcp.json` and `~/.omo/agent/skills/`, consent-gated, converted, and without overwriting an existing name, previewable with `omo setup --dry-run`. The migration-plan sentence splits "which MCP servers move to the project `.mcp.json`" into what setup carries over globally and what is genuinely project-only.
 
 Written because the old wording produced the bug it was meant to prevent: the lane moved a GLOBAL server into the PROJECT `.mcp.json`, and the next session outside that project saw nothing. Implementation detail lives in `packages/omo-native/changes.md`.
+
+## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
+
+`skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
+state, destination-derived formats, the requester's report-format memory (read from
+`system/human/report-style.md` / `reference/human-report-style.md`, appended after delivery when the run
+qualifies), and an at-most-three-question interview asked with `waitForAnswer: false`, recorded in
+`brief.md` with `answered_by` and opened as `outcome.json`. Phase 6 extracts `design-spec.md` from a
+pointed-at document, runs static gates, layout gates, visual QA and proofread in order with each status
+in the manifest, obeys `repair decide`, and prints the closing briefing with `outcome briefing`.
+`plugin/scripts/native-skill-sources.mjs` + `sync-skills.mjs` overlay the shared `scripts/` and the two
+references into the shipped skill (`sharedAssets`); `src/skills-sync.test.ts` asserts byte equality.
+omo#8611.
+
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the
@@ -1173,6 +1187,7 @@ so the connection that opens a session drops at once and the host moved the new 
 `set_session_name`, sends `retain_on_disconnect: true`, and merges the entry the host reports in
 `list_sessions` before returning. When QA'ing this surface, run the host from the engine this repo
 pins: `retain_on_disconnect` landed in senpi 2026.9.20, and an older host ignores it in silence.
+
 ## 2026-09-23 — Four-profile provider coverage follows task routing
 
 Geeky profiles keep the #8737 provider ranking: ChatGPT subscription first,
