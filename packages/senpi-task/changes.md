@@ -1,3 +1,21 @@
+## plan-reviewer checks the affected user, their experience, the problem solved, and approach fitness; plan-consultant reports ideal-state gaps
+
+`agents/builtin/plan-reviewer.ts`: the purpose becomes two questions - does the plan reach the ideal
+state it states for its affected user, and can a developer execute it. New check 5 "Affected User and
+Ideal-State Fidelity": the end user is named (forgetting the consuming program/agent, the operator, or
+the calling programmer fails), each IS row says what changes for them and which problem is solved,
+every IS row maps in `## Success criteria` to a todo and a QA scenario, and the approach can reach
+those rows - regressing a stated row, solving a different problem, or leaving a GAP row open is a
+blocker; a different approach that would also reach the rows is not. Removed: "APPROVAL BIAS ... 80%
+clear is good enough", "Good enough is good enough", "Trust developers"; added "never reject on
+taste" and "cite the row". Process step 6 and both verdict lists carry the check; the forced
+one-sentence dispatch contract in `tools/task/plan-review-contract.ts` is unchanged.
+`agents/builtin/plan-consultant.ts`: new `## Affected user and ideal-state gaps` output block, an
+ALWAYS rule to hold the plan against its user, and the Build directive "MUST NOT: Add features not
+explicitly requested" becomes "... the request or the affected user's ideal state does not require".
+Model-run proxy: the new prompt rejects a plan with an unmapped IS row and a plan naming no user
+(old prompt approved both) and approves a fully mapped plan. omo#8773.
+
 ## deep-low drops its GPT-5.6 Sol rung and gate
 
 `category/fallback-chains.ts` removes the trailing `gpt-5.6-sol` medium rung from `deep-low`, leaving
