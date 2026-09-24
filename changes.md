@@ -1,4 +1,4 @@
-## 2026-09-24 - native install clears the legacy global `omo` bin and verifies what PATH resolves
+## 2026-09-24 - native install clears the legacy global `omo` bin and verifies what PATH resolves (#8793)
 
 `install --platform=native` used to be a bare `bun add -g omo-ai@beta` / `npm i -g omo-ai@beta`, which is wrong on every machine still carrying oh-my-openagent / oh-my-opencode 4.19.4 or earlier: `latest` is still 4.19.4 and it owns a global `omo` bin, so the npm install dies with `EEXIST: file already exists <prefix>/bin/omo` and the bun install silently lands beside it, leaving `omo --version` printing `4.19.4` whenever the npm bin dir sorts earlier on PATH. The docs described the ordering; no code path detected it.
 
