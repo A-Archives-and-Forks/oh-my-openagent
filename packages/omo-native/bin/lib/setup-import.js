@@ -12,6 +12,7 @@ import { importOpencodeAssets } from "./setup-assets-import.js"
 import { literalConfigValue, readAuthStore, writeAuthStore } from "./auth-store.js"
 import { planOpencodeProviders } from "./setup-opencode-providers.js"
 import { importOpencodeProviders } from "./setup-providers-import.js"
+import { importModelChoices } from "./setup-model-choices-import.js"
 
 export const API_KEY_TYPE_ACCEPTLIST = new Set(["api_key"])
 const SQLITE_STORES = [
@@ -223,4 +224,6 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   }
   await importOpencodeAssets({ runtime, agentDir, args, confirm })
   await importOpencodeProviders({ plan: providers, agentDir, args, confirm })
+  // Last: a default model or category may name a custom provider the stage above just carried.
+  await importModelChoices({ runtime, agentDir, args, confirm, providers })
 }

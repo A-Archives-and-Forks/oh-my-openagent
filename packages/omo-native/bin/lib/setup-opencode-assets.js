@@ -57,12 +57,10 @@ function mergeDeep(base, overlay) {
   return merged
 }
 
-/**
- * One top-level object section (`mcp`, `provider`) of the merged OpenCode config. `label` names
- * what a file that cannot be read costs, in its notice.
- */
-export function readOpencodeSection(files, section, label, notices) {
-  let declared = {}
+// Every existing file of `files` that parses to an object, in order. `label` names what a file
+// that cannot be read costs, in its notice.
+function readDocuments(files, label, notices) {
+  const documents = []
   for (const path of files) {
     if (!existsSync(path)) continue
     let parsed
@@ -76,9 +74,23 @@ export function readOpencodeSection(files, section, label, notices) {
       notices.push(`WARN opencode: ${path} is not an object; its ${label} were not imported`)
       continue
     }
+    documents.push(parsed)
+  }
+  return documents
+}
+
+/** One top-level object section (`mcp`, `provider`) of the merged OpenCode config. */
+export function readOpencodeSection(files, section, label, notices) {
+  let declared = {}
+  for (const parsed of readDocuments(files, label, notices)) {
     if (isPlainObject(parsed[section])) declared = mergeDeep(declared, parsed[section])
   }
   return declared
+}
+
+/** Every file of `files` deep-merged in order, later keys winning. */
+export function readOpencodeConfig(files, label, notices) {
+  return readDocuments(files, label, notices).reduce(mergeDeep, {})
 }
 
 // OpenCode substitutes `{env:NAME}`; the engine substitutes `${NAME}`. Same intent, same value.
