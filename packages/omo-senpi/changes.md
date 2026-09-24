@@ -45,7 +45,7 @@ fix when providers are known, fail-closed and bounded rendering), `sidecar-model
 carry the category and its providers; only they classify as configuration), `index.test.ts` (the renderer
 is registered). Live proof: `scripts/qa/kibitzer-sidecar-e2e.mjs --scenario category-unavailable` (new)
 drives the real senpi binary with only `omo-mock` connected and the recall category on its builtin chain:
-3 refusals, 1 unavailable notice naming the 8 providers, 0 gate entries, 0 child turns, lease released.
+3 refusals, 1 unavailable notice naming the 8 providers, 0 gate entries, 0 child turns, lease released. omo#8800.
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the
