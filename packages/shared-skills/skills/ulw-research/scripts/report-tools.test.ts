@@ -194,3 +194,20 @@ describe("manifest bookkeeping", () => {
 		expect((await run(["outcome", "verify", "--session-dir", dir])).exitCode).toBe(0)
 	})
 })
+
+describe("format-extract exit codes", () => {
+	test("#given a pdf reference under node #when extracted #then it exits 2 with the unsupported message", () => {
+		const dir = sessionDir()
+		const pdf = join(dir, "reference.pdf")
+		writeFileSync(pdf, "%PDF-1.7")
+		const proc = nodeWithoutBun(["format-extract", pdf, "--out", join(dir, "design-spec.md")])
+		expect(proc.exitCode).toBe(2)
+		expect(proc.stderr.toString()).toContain("unsupported")
+	})
+
+	test("#given an unreachable url #when extracted #then it exits 2", () => {
+		const dir = sessionDir()
+		const proc = nodeWithoutBun(["format-extract", "http://127.0.0.1:9/report.html", "--from-url", "--out", join(dir, "design-spec.md")])
+		expect(proc.exitCode).toBe(2)
+	})
+})

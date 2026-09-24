@@ -201,7 +201,13 @@ export async function runFormatExtract(argv) {
 	const [reference] = args.positionals
 	if (!reference) throw new CliError("usage: format-extract <reference> --out <design-spec.md> [--from-url]")
 	const out = args.required("out")
-	const extract = args.flags["from-url"] ? extractFromHtml(await fetchHtml(reference), { origin: reference }) : extractFromPath(reference)
+	let extract
+	try {
+		extract = args.flags["from-url"] ? extractFromHtml(await fetchHtml(reference), { origin: reference }) : extractFromPath(reference)
+	} catch (error) {
+		// An unsupported, unreadable, or unreachable reference is an input problem (exit 2), not a gate result.
+		throw new CliError(`format-extract ${reference}: ${error.message}`)
+	}
 	writeJsonAtomic(`${out}.extract.json`, { ...extract, tokens: { light: Object.fromEntries(extract.tokens?.light ?? []), dark: Object.fromEntries(extract.tokens?.dark ?? []) } })
 	writeFileSync(out, renderDesignSpec(extract))
 	return { json: { command: "format-extract", out: resolve(out), origin: extract.origin, lineageMode: extract.lineageMode, notes: extract.notes ?? [] }, summary: `format-extract: wrote ${out}`, exitCode: 0 }
