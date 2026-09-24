@@ -144,8 +144,8 @@ describe("resolveModelProfile", () => {
     expect(result).toEqual({
       kind: "unknown",
       name: "nope",
-      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal", "night-shift"],
-      message: 'model_profile "nope" is not defined; known profiles: daily-heavy, daily-normal, geeky-heavy, geeky-normal, night-shift',
+      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal", "night-shift", "recommended"],
+      message: 'model_profile "nope" is not defined; known profiles: daily-heavy, daily-normal, geeky-heavy, geeky-normal, night-shift, recommended',
     })
   })
 
@@ -155,7 +155,7 @@ describe("resolveModelProfile", () => {
     expect(result).toMatchObject({
       kind: "unknown",
       name: "",
-      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal"],
+      known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal", "recommended"],
     })
   })
 })
@@ -190,7 +190,7 @@ describe("builtin chain routing", () => {
       expect(result).toMatchObject({
         kind: "unknown",
         name,
-        known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal"],
+        known: ["daily-heavy", "daily-normal", "geeky-heavy", "geeky-normal", "recommended"],
       })
     }
   })

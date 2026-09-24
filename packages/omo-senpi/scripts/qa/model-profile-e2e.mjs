@@ -8,14 +8,15 @@
 //                    each leaf's first rung + thinking level in the applied notice.
 //   daily-normal-kimi / daily-normal-glm  later Daily · Normal rungs.
 //   geeky-normal-nonfast-sol-omo-mock  gpt-6-sol medium via omo-mock model-id matching (not a github-copilot registration).
-//   unset            empty omo.json applies Daily · Normal (kimi-k3 here).
+//   unset            empty omo.json applies the recommended ladder (kimi-k3 on kimi-coding here).
+//   unset-skips-gateway  recommended never takes opengateway's vendor-prefixed Opus; kimi-k3 wins.
 //   empty-registry   Daily · Normal against only mock-1: unavailable, session keeps mock-1.
 //   literal-pin      model_profile "anthropic/claude-opus-5": that model id is applied.
 //   unknown-profile / capable-removed / deep-work-removed / simple-work-removed
-//                    unknown-profile notice listing the four lane ids.
+//                    unknown-profile notice listing recommended and the four lane ids.
 //   custom-profile   user model_profiles.night-shift applies its chain.
 //   cli-model-wins   `--model` (provenance "cli") with an active lane: the CLI model survives.
-//   lane-beats-recommended-models  senpi recommended-models first auto-switches to gpt-5.6-sol;
+//   lane-beats-recommended-models  senpi recommended-models first auto-switches to gpt-6-sol;
 //                    Daily · Normal still wins with glm-5.3.
 // Isolation: SENPI_CODING_AGENT_DIR + XDG_CONFIG_HOME point at a throwaway sandbox; the real
 // ~/.senpi/agent credential files are digest-compared before/after and MUST stay identical.
@@ -60,7 +61,7 @@ const defaultPluginRoot = join(packageRoot, "plugin")
 const mockProviderEntry = join(scriptDir, "model-profile-e2e-mock-provider.ts")
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
 
-import { APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE, PROFILE_TYPES, KNOWN_LANES, SCENARIOS } from "./model-profile-e2e-scenarios.mjs"
+import { APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE, PROFILE_TYPES, KNOWN_PROFILES, SCENARIOS } from "./model-profile-e2e-scenarios.mjs"
 
 function parseArgs(argv) {
   const args = { bundle: defaultPluginRoot, scenarios: Object.keys(SCENARIOS) }
@@ -223,8 +224,8 @@ function runScenario(name, scenario, args, senpiBin) {
         applied?.content.includes("skipped: anthropic-subscription/claude-opus-5-5") === true
       checks.notice_mentions_retry_chains = applied?.content.includes("retry chains") === true
     }
-    if (name === "unset") {
-      checks.default_lane = profileNotices[0]?.details?.profile === "daily-normal"
+    if (name === "unset" || name === "unset-skips-gateway") {
+      checks.default_profile = profileNotices[0]?.details?.profile === "recommended"
     }
     if (name === "empty-registry") {
       checks.unavailable_names_registry = profileNotices[0]?.content.includes("model registry") === true
@@ -232,16 +233,16 @@ function runScenario(name, scenario, args, senpiBin) {
     }
     if (name === "unknown-profile") {
       checks.notice_lists_known_profiles =
-        profileNotices[0]?.content.includes(`model_profile "nope" is not defined; known profiles: ${KNOWN_LANES}`) === true
+        profileNotices[0]?.content.includes(`model_profile "nope" is not defined; known profiles: ${KNOWN_PROFILES}`) === true
     }
     if (name === "capable-removed" || name === "deep-work-removed" || name === "simple-work-removed") {
       const retired = name.replace("-removed", "")
       checks.notice_lists_remaining_profiles =
-        profileNotices[0]?.content.includes(`model_profile "${retired}" is not defined; known profiles: ${KNOWN_LANES}`) === true
+        profileNotices[0]?.content.includes(`model_profile "${retired}" is not defined; known profiles: ${KNOWN_PROFILES}`) === true
     }
     if (name === "lane-beats-recommended-models") {
       const changes = entries.filter((entry) => entry.type === "model_change").map((entry) => entry.modelId)
-      checks.recommended_models_switched_first = changes.indexOf("gpt-5.6-sol") !== -1 && changes.indexOf("gpt-5.6-sol") < changes.lastIndexOf("glm-5.3")
+      checks.recommended_models_switched_first = changes.indexOf("gpt-6-sol") !== -1 && changes.indexOf("gpt-6-sol") < changes.lastIndexOf("glm-5.3")
     }
     if (scenario.resumeRun === true) {
       checks.resumed_one_session = entries.filter((entry) => entry.type === "session").length === 1

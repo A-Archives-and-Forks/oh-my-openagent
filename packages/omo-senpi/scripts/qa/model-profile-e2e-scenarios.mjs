@@ -5,7 +5,7 @@ export const PROFILE_TYPES = [APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE]
 
 // Fixtures use a private stream implementation, optionally registered under real provider ids.
 // `mock-1` keeps the recommended-models builtin inert except in its precedence scenario.
-export const KNOWN_LANES = "daily-heavy, daily-normal, geeky-heavy, geeky-normal"
+export const KNOWN_PROFILES = "daily-heavy, daily-normal, geeky-heavy, geeky-normal, recommended"
 
 export const SCENARIOS = {
   "geeky-normal-api-fast": {
@@ -72,7 +72,15 @@ export const SCENARIOS = {
     omoConfig: {},
     mockModels: ["mock-1", "kimi-k3"],
     cliModel: undefined,
-    expect: { model: "kimi-k3", notice: APPLIED_TYPE, thinking: "max" },
+    registerProviders: ["kimi-coding"],
+    expect: { model: "kimi-k3", provider: "kimi-coding", notice: APPLIED_TYPE, thinking: "max" },
+  },
+  "unset-skips-gateway": {
+    omoConfig: {},
+    mockModels: ["mock-1", "anthropic/claude-opus-5-5", "kimi-k3"],
+    cliModel: undefined,
+    registerProviders: ["opengateway", "kimi-coding"],
+    expect: { model: "kimi-k3", provider: "kimi-coding", notice: APPLIED_TYPE, thinking: "max" },
   },
   "empty-registry": {
     omoConfig: { model_profile: "daily-normal" },
@@ -172,9 +180,10 @@ export const SCENARIOS = {
   },
   "lane-beats-recommended-models": {
     omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "glm-5.3", "gpt-5.6-sol"],
+    mockModels: ["mock-1", "glm-5.3", "gpt-6-sol"],
     cliModel: undefined,
     recommendedModels: undefined,
-    expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
+    registerProviders: ["chatgpt-subscription", "zai-coding-plan"],
+    expect: { model: "glm-5.3", provider: "zai-coding-plan", notice: APPLIED_TYPE, thinking: "max" },
   },
 }

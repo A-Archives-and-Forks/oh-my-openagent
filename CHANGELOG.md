@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**With no model profile set, OmO starts on the recommended model.** ([#8770](https://github.com/code-yeongyu/oh-my-openagent/issues/8770)) A fresh OmO Desktop or headless session with no `model_profile` now runs Recommended instead of Daily · Normal: Claude Opus 5.5 (medium), then Claude Fable 5.1 (xhigh), Kimi K3 (max), GPT-6 Astra (xhigh), GPT-6 Sol (medium), and GLM 5.3 (max), whichever you have connected first. The Claude subscription wins over the Anthropic API, and gateway aggregators such as OpenGateway and OpenRouter are never picked for this default. The terminal follows the same order through the engine's recommended-model switch ([senpi#2074](https://github.com/code-yeongyu/senpi/issues/2074)). The four Daily/Geeky lanes are unchanged and apply when you pick one; `model_profile: "recommended"` selects the default explicitly.
+
 ## [5.0.0-beta.88] - 2026-09-23
 
 ### Changed
