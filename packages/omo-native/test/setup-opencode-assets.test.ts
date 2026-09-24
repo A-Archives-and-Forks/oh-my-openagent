@@ -143,6 +143,45 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given both an opencode.json and an opencode.jsonc", () => {
+    describe("#when they are planned", () => {
+      test("#then both are read and merged the way opencode merges them, jsonc last", () => {
+        const plan = fixture({
+          mcp: {
+            "from-json": { type: "local", command: ["json-tool"] },
+            shared: { type: "local", command: ["shared-tool"], environment: { A: "1" } },
+          },
+        }, {
+          jsonc: `{\n  // jsonc layer\n  "mcp": {\n    "from-jsonc": { "type": "remote", "url": "https://c.test/mcp" },\n    "shared": { "enabled": false, "environment": { "B": "2" } },\n  },\n}\n`,
+        })
+
+        expect(plan.notices).toEqual([])
+        expect(plan.mcpServers).toEqual([
+          { name: "from-json", config: { type: "stdio", command: "json-tool" } },
+          { name: "shared", config: { type: "stdio", command: "shared-tool", env: { A: "1", B: "2" }, enabled: false } },
+          { name: "from-jsonc", config: { type: "http", url: "https://c.test/mcp" } },
+        ])
+      })
+    })
+  })
+
+  describe("#given an opencode.json that does not parse next to a valid opencode.jsonc", () => {
+    describe("#when they are planned", () => {
+      test("#then the broken file is reported and the jsonc servers still import", () => {
+        const root = mkdtempSync(join(tmpdir(), "omo-assets-"))
+        roots.push(root)
+        const configDir = join(root, "config", "opencode")
+        write(join(configDir, "opencode.json"), "{ not json")
+        write(join(configDir, "opencode.jsonc"), `{ "mcp": { "ok": { "type": "local", "command": ["ok"] } } }`)
+
+        const plan = planOpencodeAssets({ home: join(root, "home"), env: { XDG_CONFIG_HOME: join(root, "config") } })
+
+        expect(plan.mcpServers.map((server) => server.name)).toEqual(["ok"])
+        expect(plan.notices.join("\n")).toContain("opencode.json")
+      })
+    })
+  })
+
   describe("#given global opencode skills", () => {
     describe("#when they are planned", () => {
       test("#then each skill directory is listed by name", () => {

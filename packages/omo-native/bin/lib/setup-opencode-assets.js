@@ -24,20 +24,43 @@ export function opencodeConfigDir(home, env) {
   return join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode")
 }
 
-function readConfig(configDir, notices) {
-  for (const name of ["opencode.json", "opencode.jsonc"]) {
+// OpenCode's global config is every one of these files deep-merged in this order, later keys
+// winning - not the first one found - so a server declared in opencode.jsonc is live even when an
+// opencode.json sits next to it.
+const GLOBAL_CONFIG_FILES = ["config.json", "opencode.json", "opencode.jsonc"]
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function mergeDeep(base, overlay) {
+  const merged = { ...base }
+  for (const [key, value] of Object.entries(overlay)) {
+    if (key === "__proto__") continue
+    merged[key] = isPlainObject(merged[key]) && isPlainObject(value) ? mergeDeep(merged[key], value) : value
+  }
+  return merged
+}
+
+function readDeclaredServers(configDir, notices) {
+  let declared = {}
+  for (const name of GLOBAL_CONFIG_FILES) {
     const path = join(configDir, name)
     if (!existsSync(path)) continue
+    let parsed
     try {
-      const parsed = parseJsonc(readFileSync(path, "utf8"))
-      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
-      notices.push(`WARN opencode: ${name} is not an object; mcp servers not imported`)
+      parsed = parseJsonc(readFileSync(path, "utf8"))
     } catch (error) {
-      notices.push(`WARN opencode: could not parse ${name}: ${error.message}`)
+      notices.push(`WARN opencode: could not parse ${name}: ${error.message}; its mcp servers were not imported`)
+      continue
     }
-    return undefined
+    if (!isPlainObject(parsed)) {
+      notices.push(`WARN opencode: ${name} is not an object; its mcp servers were not imported`)
+      continue
+    }
+    if (isPlainObject(parsed.mcp)) declared = mergeDeep(declared, parsed.mcp)
   }
-  return undefined
+  return declared
 }
 
 // OpenCode substitutes `{env:NAME}`; the engine substitutes `${NAME}`. Same intent, same value.
@@ -119,13 +142,9 @@ export function planOpencodeAssets(options = {}) {
   const notices = []
   const mcpServers = []
   if (existsSync(configDir)) {
-    const config = readConfig(configDir, notices)
-    const declared = config?.mcp
-    if (declared !== null && typeof declared === "object" && !Array.isArray(declared)) {
-      for (const [name, entry] of Object.entries(declared)) {
-        const converted = convertServer(name, entry, notices)
-        if (converted) mcpServers.push({ name, config: converted })
-      }
+    for (const [name, entry] of Object.entries(readDeclaredServers(configDir, notices))) {
+      const converted = convertServer(name, entry, notices)
+      if (converted) mcpServers.push({ name, config: converted })
     }
   }
   return { mcpServers, skills: existsSync(configDir) ? readSkills(configDir) : [], notices }
