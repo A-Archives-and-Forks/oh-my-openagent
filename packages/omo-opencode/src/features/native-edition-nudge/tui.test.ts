@@ -108,7 +108,7 @@ describe("guide opens the documented URL", () => {
     const result = applyNativeEditionNudgeAction("guide", { store: fake.store, now: NOW, bunAvailable: true })
 
     // then
-    expect(result.url).toContain("docs/guide/installation.md")
+    expect(result.url).toContain("docs/guide/migrating-from-opencode.md")
     expect(fake.writes[0]?.nextEligibleAt).toBe(NOW + NUDGE_SNOOZE_MS)
   })
 })
