@@ -35,6 +35,14 @@ function candidate(provider, key, source, providerMap) {
   return target ? { provider: target, key, source } : { provider, source, unmapped: true }
 }
 
+// opencode keeps a pasted key verbatim and never interprets it, but the engine resolves every stored
+// key as a config value: a leading `!` runs a shell command and `$NAME` / `${NAME}` interpolate the
+// environment. `$$` and `$!` are the engine's literal escapes, so the engine reads back the exact
+// bytes opencode held.
+function literalConfigValue(value) {
+  return value.replace(/[$!]/g, "$$$&")
+}
+
 function readOpencode(path, providerMap, plan) {
   if (!existsSync(path)) return
   try {
@@ -45,7 +53,7 @@ function readOpencode(path, providerMap, plan) {
       if (entry.type === "oauth") {
         plan.oauth.push(provider)
       } else if (entry.type === "api" && typeof entry.key === "string") {
-        plan.candidates.push(candidate(provider, entry.key, "opencode", providerMap))
+        plan.candidates.push(candidate(provider, literalConfigValue(entry.key), "opencode", providerMap))
       }
     }
   } catch (error) {

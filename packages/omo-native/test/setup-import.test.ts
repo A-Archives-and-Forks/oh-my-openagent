@@ -7,7 +7,7 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { teardownRoots, withDatabase } from "./teardown.test-support"
 
 function sqlLiteral(value: string | null): string {
@@ -41,8 +41,15 @@ const secrets = [
   "SK-SENTINEL-DO-NOT-LOG-1", "SK-SENTINEL-DO-NOT-LOG-2",
   "SK-SENTINEL-DO-NOT-LOG-3", "SK-SENTINEL-DO-NOT-LOG-4",
   "SK-SENTINEL-DO-NOT-LOG-5", "SK-SENTINEL-DO-NOT-LOG-6",
-  "SK-SENTINEL-DO-NOT-LOG-7",
+  "SK-SENTINEL-DO-NOT-LOG-7", "SK-SENTINEL-DO-NOT-LOG-8",
+  "SK-SENTINEL-DO-NOT-LOG-9",
 ]
+
+// The engine's own config-value resolver: every api_key the engine reads from auth.json goes through it.
+const senpiPackageRoot = dirname(dirname(fileURLToPath(import.meta.resolve("@code-yeongyu/senpi"))))
+const { resolveConfigValue } = await import(
+  pathToFileURL(join(senpiPackageRoot, "dist", "core", "resolve-config-value.js")).href
+) as { resolveConfigValue(config: string, env?: Record<string, string>): Promise<string | undefined> }
 
 type Fixture = { root: string; home: string; agentDir: string; xdg: string; launcher: string }
 type DatabaseHandle = { readonly isOpen: boolean }
@@ -178,6 +185,24 @@ describe("omo setup credential inheritance", () => {
     expect(result.stdout).toContain("skipped-unmapped: 1")
     expect(result.stdout).toContain("unknown-gateway")
     expectSourcesUntouched(before)
+  })
+
+  test("#given opencode keys holding config-value syntax #when imported #then the engine resolves them to the exact source bytes", async () => {
+    const item = fixture()
+    const commandShaped = `!${secrets[7]} {env:HOME} \\ ü`
+    const templateShaped = `${secrets[8]}$HOME\${HOME}$$$!!`
+    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
+      openai: { type: "api", key: commandShaped },
+      google: { type: "api", key: templateShaped },
+    }))
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(0)
+    const stored = auth(item) as Record<string, { key: string }>
+    const env = { HOME: item.home }
+    expect(await resolveConfigValue(stored.openai.key, env)).toBe(commandShaped)
+    expect(await resolveConfigValue(stored.google.key, env)).toBe(templateShaped)
   })
 
   test("#given a skipped oauth provider #when setup reports #then it names the real sign-in command", () => {
