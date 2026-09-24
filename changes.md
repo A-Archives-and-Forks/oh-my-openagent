@@ -1,3 +1,7 @@
+## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest
+
+`docs/guide/installation.md` rewrites the import stage of the `omo setup` section. It now says that a credential whose provider id differs between harnesses is still imported when the endpoint matches (opencode's `zai-coding-plan` key lands on the `zai` provider), and that a skipped credential comes with the command that fixes it: start `omo` and run `/login <provider>` for an OAuth login, or define the provider and its baseUrl in the engine's `models.json` and then `/login` it for an API key nothing serves. The old text pointed at `omo auth`, which only prints or checks credentials that already exist and cannot sign anyone in. Implementation detail lives in `packages/omo-native/changes.md`.
+
 ## 2026-09-24 - installation guide: `omo setup` also carries over opencode MCP servers and skills
 
 `docs/guide/installation.md` extends the import stage of the `omo setup` section: alongside credentials, the same stage converts the MCP servers declared in `~/.config/opencode/opencode.json[c]` into the engine's schema and merges them into the global `~/.omo/agent/mcp.json`, and copies global OpenCode skills into `~/.omo/agent/skills/`, with its own preview and confirmation. The text names why both are global rather than per-project, that an existing name is kept and reported, that `mcp.json` is backed up before it is rewritten, and that a server using shell command substitution is refused. Implementation detail lives in `packages/omo-native/changes.md`.

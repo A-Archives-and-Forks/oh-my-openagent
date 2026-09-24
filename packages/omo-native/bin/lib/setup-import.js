@@ -9,6 +9,7 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
+import { formatCredentialGuidance } from "./setup-guidance.js"
 import { importOpencodeAssets } from "./setup-assets-import.js"
 
 export const API_KEY_TYPE_ACCEPTLIST = new Set(["api_key"])
@@ -26,7 +27,6 @@ function readProviderMap() {
 }
 
 function targetProvider(provider, providerMap) {
-  if (providerMap.excludedHostedGatewayIds.includes(provider)) return undefined
   if (providerMap.builtinProviderIds.includes(provider)) return provider
   return providerMap.providers[provider]
 }
@@ -91,11 +91,10 @@ function readSqliteStore(id, path, expectedVersion, DatabaseSync, providerMap, p
   }
 }
 
-async function buildPlan(options) {
+async function buildPlan(options, providerMap) {
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
   const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share")
-  const providerMap = readProviderMap()
   const plan = { candidates: [], oauth: [], notices: [] }
   readOpencode(join(dataHome, "opencode", "auth.json"), providerMap, plan)
   try {
@@ -148,7 +147,7 @@ function list(label, ids) {
   return `${label}: ${ids.length > 0 ? ids.join(", ") : "none"}`
 }
 
-function printPlan(result, dryRun) {
+function printPlan(result, dryRun, providerMap) {
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")
   process.stdout.write(`${[
     list("planned-add", result.additions.map((item) => item.provider)),
@@ -156,16 +155,17 @@ function printPlan(result, dryRun) {
     list("skipped-oauth", result.skippedOauth),
     list("skipped-unmapped", result.skippedUnmapped),
   ].join("\n")}\n`)
+  process.stdout.write(formatCredentialGuidance(result, providerMap))
 }
 
-function printCounts(result) {
+function printCounts(result, providerMap) {
   process.stdout.write([
     `imported: ${result.additions.length}`,
     `skipped-existing: ${result.skippedExisting.length}`,
     `skipped-oauth: ${result.skippedOauth.length}`,
     `skipped-unmapped: ${result.skippedUnmapped.length}`,
-    "Use `omo auth` to sign in to OAuth providers.",
   ].join("\n") + "\n")
+  process.stdout.write(formatCredentialGuidance(result, providerMap))
 }
 
 function timestamp() {
@@ -209,7 +209,8 @@ function consent(result, target, options) {
 }
 
 async function importCredentials(runtime, target, args) {
-  const plan = await buildPlan(runtime)
+  const providerMap = readProviderMap()
+  const plan = await buildPlan(runtime, providerMap)
   for (const notice of plan.notices) process.stdout.write(`${notice}\n`)
   const current = readTarget(target)
   if (current.malformed) {
@@ -218,9 +219,9 @@ async function importCredentials(runtime, target, args) {
   }
   const result = classify(plan, current.entries)
   const dryRun = args.includes("--dry-run")
-  printPlan(result, dryRun)
+  printPlan(result, dryRun, providerMap)
   if (dryRun || result.additions.length === 0) {
-    if (!dryRun) printCounts(result)
+    if (!dryRun) printCounts(result, providerMap)
     return
   }
   if (!await consent(result, target, { ...runtime, yes: args.includes("--yes") })) {
@@ -228,7 +229,7 @@ async function importCredentials(runtime, target, args) {
     return
   }
   writeTarget(target, current, result.additions)
-  printCounts(result)
+  printCounts(result, providerMap)
 }
 
 export async function runSetup(args = process.argv.slice(2), options = {}) {
