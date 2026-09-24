@@ -29,9 +29,10 @@ export function formatNativeInstallCommand(plan: NativeInstallPlan): string {
 /**
  * The command every user-facing surface advertises. It is the raw package install plus the parts a
  * raw install cannot do: clearing a stale global `omo` left by a pre-rename release, and checking
- * that the `omo` PATH resolves afterwards is the one omo-ai owns.
+ * that the `omo` PATH resolves afterwards is the one omo-ai owns. The `@beta` tag is required:
+ * `latest` is still 4.19.4, which rejects `--platform=native`.
  */
 export function formatNativeInstallEntryCommand(plan: NativeInstallPlan): string {
   const runner = plan.packageManager === "bun" ? "bunx" : "npx"
-  return `${runner} ${PUBLISHED_PACKAGE_NAME} install --platform=native`
+  return `${runner} ${PUBLISHED_PACKAGE_NAME}@beta install --platform=native`
 }

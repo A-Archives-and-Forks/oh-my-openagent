@@ -52,7 +52,7 @@ describe("install hands over the command without claiming the user migrated", ()
     const result = applyNativeEditionNudgeAction("install", { store: fake.store, now: NOW, bunAvailable: true })
 
     // then
-    expect(result.toast).toContain("bunx oh-my-openagent install --platform=native")
+    expect(result.toast).toContain("bunx oh-my-openagent@beta install --platform=native")
     expect(result.toast).toContain("omo setup")
     expect(fake.writes).toHaveLength(0)
   })
@@ -65,7 +65,7 @@ describe("install hands over the command without claiming the user migrated", ()
     const result = applyNativeEditionNudgeAction("install", { store: fake.store, now: NOW, bunAvailable: false })
 
     // then
-    expect(result.toast).toContain("npx oh-my-openagent install --platform=native")
+    expect(result.toast).toContain("npx oh-my-openagent@beta install --platform=native")
   })
 })
 
