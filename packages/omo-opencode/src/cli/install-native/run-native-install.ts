@@ -102,9 +102,9 @@ export async function runNativeInstall(
   const verification = await verifyOmoCommand({ environment, probeVersion: dependencies.probeVersion })
   notes.push(...verification.notes)
   warnings.push(...verification.warnings)
-  return verification.binPath === undefined
-    ? { ok: true, verified: false, plan, notes, warnings }
-    : { ok: true, verified: true, omoBinPath: verification.binPath, plan, notes, warnings }
+  return verification.ok
+    ? { ok: true, verified: true, omoBinPath: verification.binPath, plan, notes, warnings }
+    : { ok: true, verified: false, plan, notes, warnings }
 }
 
 const NPM_LEGACY_OMO_PACKAGES: readonly string[] = ["oh-my-openagent", "oh-my-opencode"]
