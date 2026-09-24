@@ -55,6 +55,7 @@ function run(item: Fixture, args: string[]) {
   delete env.OMO_CODING_AGENT_DIR
   delete env.PI_CODING_AGENT_DIR
   delete env.OPENCODE_CONFIG_DIR
+  delete env.OPENCODE_CONFIG
   const result = spawnSync(process.execPath, [item.launcher, ...args], { encoding: "utf8", env })
   if (result.error) throw result.error
   return result

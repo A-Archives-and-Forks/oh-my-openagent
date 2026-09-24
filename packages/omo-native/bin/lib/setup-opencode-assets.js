@@ -5,7 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { parseJsonc } from "./jsonc.js"
 
 // `interpolateString` in the engine's mcp config rejects any string value that looks like command
@@ -18,16 +18,31 @@ function rejectedByEngine(value) {
   return false
 }
 
-export function opencodeConfigDir(home, env) {
-  const explicit = env.OPENCODE_CONFIG_DIR?.trim()
-  if (explicit) return explicit
-  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode")
-}
-
 // OpenCode's global config is every one of these files deep-merged in this order, later keys
 // winning - not the first one found - so a server declared in opencode.jsonc is live even when an
 // opencode.json sits next to it.
 const GLOBAL_CONFIG_FILES = ["config.json", "opencode.json", "opencode.jsonc"]
+
+// Every other user-scope config directory contributes only these two, on top of the global dir.
+const DIRECTORY_CONFIG_FILES = ["opencode.json", "opencode.jsonc"]
+
+/**
+ * Where OpenCode itself reads user-scope config, in its merge order: the global dir's files, then
+ * `$OPENCODE_CONFIG`, then `~/.opencode` and `$OPENCODE_CONFIG_DIR`. `OPENCODE_CONFIG_DIR` is one
+ * more layer on top of the global dir, not a replacement for it, and every directory can hold
+ * skills.
+ */
+export function opencodeConfigSources(home, env) {
+  const globalDir = join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode")
+  const directories = [globalDir, join(home, ".opencode")]
+  const explicitDir = env.OPENCODE_CONFIG_DIR?.trim()
+  if (explicitDir && !directories.includes(resolve(explicitDir))) directories.push(resolve(explicitDir))
+  const files = GLOBAL_CONFIG_FILES.map((name) => join(globalDir, name))
+  const explicitFile = env.OPENCODE_CONFIG?.trim()
+  if (explicitFile) files.push(resolve(explicitFile))
+  for (const directory of directories.slice(1)) files.push(...DIRECTORY_CONFIG_FILES.map((name) => join(directory, name)))
+  return { files, directories }
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -42,20 +57,19 @@ function mergeDeep(base, overlay) {
   return merged
 }
 
-function readDeclaredServers(configDir, notices) {
+function readDeclaredServers(files, notices) {
   let declared = {}
-  for (const name of GLOBAL_CONFIG_FILES) {
-    const path = join(configDir, name)
+  for (const path of files) {
     if (!existsSync(path)) continue
     let parsed
     try {
       parsed = parseJsonc(readFileSync(path, "utf8"))
     } catch (error) {
-      notices.push(`WARN opencode: could not parse ${name}: ${error.message}; its mcp servers were not imported`)
+      notices.push(`WARN opencode: could not parse ${path}: ${error.message}; its mcp servers were not imported`)
       continue
     }
     if (!isPlainObject(parsed)) {
-      notices.push(`WARN opencode: ${name} is not an object; its mcp servers were not imported`)
+      notices.push(`WARN opencode: ${path} is not an object; its mcp servers were not imported`)
       continue
     }
     if (isPlainObject(parsed.mcp)) declared = mergeDeep(declared, parsed.mcp)
@@ -118,10 +132,9 @@ function convertServer(name, entry, notices) {
   return config
 }
 
-function readSkills(configDir) {
+function readSkills(configDirs) {
   const skills = []
-  for (const directory of ["skills", "skill"]) {
-    const root = join(configDir, directory)
+  for (const root of configDirs.flatMap((configDir) => [join(configDir, "skills"), join(configDir, "skill")])) {
     if (!existsSync(root)) continue
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
@@ -138,14 +151,12 @@ function readSkills(configDir) {
 export function planOpencodeAssets(options = {}) {
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
-  const configDir = opencodeConfigDir(home, env)
+  const sources = opencodeConfigSources(home, env)
   const notices = []
   const mcpServers = []
-  if (existsSync(configDir)) {
-    for (const [name, entry] of Object.entries(readDeclaredServers(configDir, notices))) {
-      const converted = convertServer(name, entry, notices)
-      if (converted) mcpServers.push({ name, config: converted })
-    }
+  for (const [name, entry] of Object.entries(readDeclaredServers(sources.files, notices))) {
+    const converted = convertServer(name, entry, notices)
+    if (converted) mcpServers.push({ name, config: converted })
   }
-  return { mcpServers, skills: existsSync(configDir) ? readSkills(configDir) : [], notices }
+  return { mcpServers, skills: readSkills(sources.directories), notices }
 }

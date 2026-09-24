@@ -182,6 +182,32 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given OPENCODE_CONFIG_DIR set next to the global config dir", () => {
+    describe("#when they are planned", () => {
+      test("#then the global dir is still read and the explicit dir and ~/.opencode layer on top", () => {
+        const root = mkdtempSync(join(tmpdir(), "omo-assets-"))
+        roots.push(root)
+        const home = join(root, "home")
+        const globalDir = join(root, "config", "opencode")
+        const profileDir = join(root, "profile")
+        write(join(globalDir, "opencode.json"), JSON.stringify({ mcp: { global: { type: "local", command: ["g"] }, shared: { type: "local", command: ["from-global"] } } }))
+        write(join(profileDir, "opencode.jsonc"), `{ "mcp": { "profile": { "type": "local", "command": ["p"] }, "shared": { "command": ["from-profile"] }, }, }`)
+        write(join(globalDir, "skills", "global-skill", "SKILL.md"), "---\nname: global-skill\ndescription: g\n---\n")
+        write(join(home, ".opencode", "skill", "dot-skill", "SKILL.md"), "---\nname: dot-skill\ndescription: d\n---\n")
+        write(join(profileDir, "skills", "profile-skill", "SKILL.md"), "---\nname: profile-skill\ndescription: p\n---\n")
+
+        const plan = planOpencodeAssets({ home, env: { XDG_CONFIG_HOME: join(root, "config"), OPENCODE_CONFIG_DIR: profileDir } })
+
+        expect(plan.mcpServers).toEqual([
+          { name: "global", config: { type: "stdio", command: "g" } },
+          { name: "shared", config: { type: "stdio", command: "from-profile" } },
+          { name: "profile", config: { type: "stdio", command: "p" } },
+        ])
+        expect(plan.skills.map((skill) => skill.name)).toEqual(["dot-skill", "global-skill", "profile-skill"])
+      })
+    })
+  })
+
   describe("#given global opencode skills", () => {
     describe("#when they are planned", () => {
       test("#then each skill directory is listed by name", () => {
