@@ -293,6 +293,23 @@ describe("omo setup opencode custom provider import", () => {
     })
   })
 
+  describe("#given a custom provider id the credential stage also imports a key for", () => {
+    describe("#when setup is accepted", () => {
+      test("#then the key the credential stage wrote in the same run is kept, not overwritten", () => {
+        // claude-sdk-oauth maps to anthropic-subscription, which is not a builtin id to the provider stage.
+        const item = fixture()
+        const provider = { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://x.example/v1", apiKey: "provider-key" }, models: { m: {} } }
+        opencode(item, { provider: { "anthropic-subscription": provider } }, { "claude-sdk-oauth": { type: "api", key: "credential-key" } })
+
+        const result = run(item, ["setup", "--yes"])
+
+        expect(result.status).toBe(0)
+        expect(readJson(join(item.agentDir, "auth.json"))).toEqual({ "anthropic-subscription": { type: "api_key", key: "credential-key" } })
+        expect(result.stdout).toContain("provider-keys-imported: 0")
+      })
+    })
+  })
+
   describe("#given a custom provider and no consent", () => {
     describe("#when setup is a dry run or runs non-interactively without --yes", () => {
       test("#then the provider is previewed and nothing is written", () => {

@@ -109,7 +109,10 @@ export function planProviders(source, agentDir) {
 
 export function applyProviders(plan) {
   writeModels(plan.paths.models, plan.models, plan.result.added)
-  // Re-read: the credential stage of the same run may have just written auth.json. Its keys are
-  // builtin provider ids and these are custom ones, so the classification above still holds.
-  if (plan.result.keys.length > 0) writeAuthStore(plan.paths.auth, readAuthStore(plan.paths.auth), plan.result.keys)
+  // Re-read: the credential stage of the same run may have just written auth.json, after this plan
+  // was classified. A mapped credential target can also be a custom provider id (claude-sdk-oauth ->
+  // anthropic-subscription), so a key written since the plan is kept, never overwritten.
+  const auth = readAuthStore(plan.paths.auth)
+  plan.result.keys = auth.malformed ? [] : plan.result.keys.filter((item) => !Object.hasOwn(auth.entries, item.provider))
+  if (plan.result.keys.length > 0) writeAuthStore(plan.paths.auth, auth, plan.result.keys)
 }
