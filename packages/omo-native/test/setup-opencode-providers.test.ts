@@ -9,6 +9,7 @@ import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core
 import { composeModelProvider } from "../../../node_modules/@code-yeongyu/senpi/dist/core/provider-composer.js"
 import { resolveConfigValue } from "../../../node_modules/@code-yeongyu/senpi/dist/core/resolve-config-value.js"
 import { readAuthStore, writeAuthStore } from "../bin/lib/auth-store.js"
+import { planOpencodeProviders } from "../bin/lib/setup-opencode-providers.js"
 import { teardownRoots } from "./teardown.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
@@ -210,6 +211,7 @@ describe("omo setup opencode custom provider import", () => {
         expect(result.stdout).toContain("provider openai ")
         expect(result.stdout).toContain("custom provider hosted has no fixed baseURL")
         expect(result.stdout).toContain("providers-imported: acme\n")
+        expect(planOpencodeProviders({ home: item.home, env: { XDG_CONFIG_HOME: item.configHome, XDG_DATA_HOME: item.dataHome } }).skipped).toEqual(["gemini", "hosted", "openai"])
       })
     })
   })

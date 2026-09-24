@@ -116,6 +116,7 @@ describe("opencode asset plan", () => {
 
         expect(plan.mcpServers.map((server) => server.name)).toEqual(["safe"])
         expect(plan.notices.join("\n")).toContain("risky")
+        expect(plan.refusedServers.map((server: { name: string }) => server.name)).toEqual(["risky"])
       })
     })
   })
@@ -134,6 +135,7 @@ describe("opencode asset plan", () => {
         expect(plan.mcpServers).toEqual([{ name: "plain", config: { type: "stdio", command: "tool", env: { TOKEN: "${MY_TOKEN}" } } }])
         expect(plan.notices.join("\n")).toContain("file-header")
         expect(plan.notices.join("\n")).toContain("dashed-env")
+        expect(plan.refusedServers.map((server: { name: string }) => server.name)).toEqual(["file-header", "dashed-env"])
       })
     })
   })
