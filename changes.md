@@ -1,3 +1,9 @@
+## 2026-09-24 - installation guide: what `omo setup` imports, and what it tells you to do about the rest (#8799)
+
+`docs/guide/installation.md` rewrites the import stage of the `omo setup` section. It now says that a credential whose provider id differs between harnesses is still imported when the endpoint matches (opencode's `zai-coding-plan` key lands on the `zai` provider), and that a skipped credential comes with the command that fixes it: start `omo` and run `/login <provider>` for an OAuth login, or define the provider and its baseUrl in the engine's `models.json` and then `/login` it for an API key nothing serves. The old text pointed at `omo auth`, which only prints or checks credentials that already exist and cannot sign anyone in. Implementation detail lives in `packages/omo-native/changes.md`.
+
+||||||| 530692bc0
+
 ## 2026-09-24 - skills instruct the brand command for --list-tips, --onboard, and hyperplan restart (#8794)
 
 `packages/omo-senpi/skills/give-me-tips/SKILL.md` and `onboarding/SKILL.md` told the agent to list tips with `senpi --list-tips`, which is not on PATH for an OmO Native (`omo-ai`) install. They now use `omo --list-tips` on OmO Native (session env carries `OMO_NATIVE=1` / `OMO_BIN`; the npm launcher, compiled omob remapper, and local-install launcher all set both) and `senpi --list-tips` on a plain senpi install, with `"$OMO_BIN" --list-tips` when the brand command is not on PATH. `skills/AGENTS.md` follows. The same brand-command rule covers the onboarding re-run flag (`omo --onboard` / `senpi --onboard`; `--onboard` is an omo-senpi extension flag, not an engine CLI) and the hyperplan restart hint (`omo` / `senpi` without `--no-omo-task`). Onboarding lane 2 (Migration help) is unchanged.
