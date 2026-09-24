@@ -4,6 +4,27 @@
 
 ||||||| e1693d8b4
 
+||||||| ed0fb0601
+
+## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
+
+`omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
+
+The launcher now runs that command. `--dry-run` / `--print` keep the print-only answer. A successful run streams the manager output and prints `omo <before> -> <after> (engine: senpi ...)`. A failed run exits non-zero with the same command to retry by hand. Bun-global installs spawn `bun add -g omo-ai@beta` with `BUN_INSTALL` overlaid from the install prefix; npm stays `npm i -g omo-ai@beta`. The engine pin is untouched: the launcher never updates `@code-yeongyu/senpi` separately.
+
+Verification: `bun test packages/omo-native/test/self-update.test.ts packages/omo-native/test/launcher.test.ts` 54/0; `node --check` on the three JS files. Sandbox `BUN_INSTALL`: overlay the new updater onto `omo-ai@5.0.0-0.beta.88`, `omo update --dry-run` printed only and left 88, `omo update` streamed bun add and reported `omo 5.0.0-0.beta.88 -> 5.0.0-0.beta.89 (engine: senpi 2026.9.24)`.
+
+||||||| e1693d8b4
+
+## 2026-09-24 - native install offers to run `omo setup`; the advertised installer tag follows the plugin's channel (#8828)
+
+`install --platform=native` used to end with "OmO Native installed. Run omo setup to finish onboarding." even though it had just verified that `omo` on PATH is omo-ai. In the interactive installer (`packages/omo-opencode/src/cli/tui-installer.ts`) a verified install is now followed by `Run omo setup now to carry your OpenCode credentials, MCP servers and skills over?` (clack confirm, default Yes); yes runs `<verified path> setup` with the terminal inherited, so setup's own consent prompt works. The path is the one `verifyOmoCommand` probed (`OmoCommandVerification.binPath` -> `NativeInstallOutcome.omoBinPath`), never a fresh `omo` lookup. The decision lives in `cli/install-native/offer-native-setup.ts` (`offerNativeSetup`, injected `confirm` / `runSetup`); a setup that exits non-zero or cannot be spawned leaves a warning pointing back at `omo setup`. An unverified install is never offered and keeps the PATH fix #8793 prints. `--no-tui` (`cli-installer.ts`, unchanged) keeps printing the next step.
+
+`formatNativeInstallEntryCommand` (`cli/install-native/plan.ts`) takes the running plugin's version (default: the bundled `package.json` version via `getBundledVersion`) and uses `@beta` only for a prerelease (`isPrereleaseVersion`); a stable build advertises the bare `oh-my-openagent`, which resolves to `latest`. The nudge toast, the `/native` dialog and the installer hint all go through it, so they follow without their own change; on the current `5.0.0-beta.89` they still say `@beta`.
+
+Verification: `bun test packages/omo-opencode/src/cli` 841/0, native-edition nudge surfaces 60/0, with new cases for the offer (yes -> verified path, no, verify-failed, spawn error), the TUI wiring and `--no-tui`, and the tag per channel; each of three production mutations (bare `omo`, offer when unverified, hard-coded `@beta`) fails its cases. PTY sandbox run of the built installer answering yes: setup starts from `<sandbox>/bun/bin/omo` and imports the seeded OpenCode key after its own `[y/N]`; `--no-tui` run prints the step and writes no `~/.omo`.
+
+||||||| e1693d8b4
 ## 2026-09-24 - A memory commit mid-session no longer changes the system prompt; the change arrives as a notice (#8470)
 
 The senpi memory block was compiled from the memory repo HEAD on every turn. A commit that added a file (the agent's own `memory create`, a reflection, a facts run, another session) grew `<external_projection>`, a system-file edit rewrote the projected body, and a large edit moved the pressure line; each changed the system prompt hash, so the provider's prefix cache missed the whole conversation behind it (~180K tokens rewritten on a 190K session).
