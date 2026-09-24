@@ -139,9 +139,23 @@ function friendlyFailure(raw: string): string {
   if (/^no memory identity bound/u.test(message)) return "Memory is not ready for this session yet."
   const missing = /^'([a-z_]+)' must be a non-empty string$/u.exec(message)
   if (missing?.[1] !== undefined) return `The request had no ${missing[1].replace(/_/gu, " ")}.`
+  const description = descriptionFailure(message)
+  if (description !== undefined) return description
   if (message.length === 0) return "Memory was left unchanged."
   const sentence = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
   return /[.!?]$/u.test(sentence) ? sentence : `${sentence}.`
+}
+
+/** Description refusals; `memory_apply_patch` puts the file path before them, so they are not anchored. */
+function descriptionFailure(message: string): string | undefined {
+  if (message.includes("'description' contains tool-call scaffolding")) return "The memory call arrived garbled, so nothing was saved."
+  const tooLong = /'description' exceeds (\d+) characters \((\d+)\)/u.exec(message)
+  if (tooLong?.[1] !== undefined && tooLong[2] !== undefined) {
+    return `The description was ${Number(tooLong[2]).toLocaleString("en-US")} characters; the limit is ${Number(tooLong[1]).toLocaleString("en-US")}.`
+  }
+  if (message.includes("'description' must be a single line")) return "The description has to fit on one line."
+  if (message.includes("'description' must not be empty")) return "The request had no description."
+  return undefined
 }
 
 /** "system 2.0K injected · 33K total · 12 files"; omitted whole when the tree walk failed. */

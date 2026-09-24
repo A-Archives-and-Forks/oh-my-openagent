@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **The OmO Native footer badge credits its author and tells a dev build apart.** ([#8771](https://github.com/code-yeongyu/oh-my-openagent/issues/8771)) The status row now reads `(😺 OmO Native by Q Kim)`, and a session started from an `omob` dev build shows `(☕ OmO Native by Q Kim)` instead, so you can see at a glance which binary you are running.
 
+### Fixed
+
+**Memory writes no longer fail with "'description' exceeds 1024 characters" when the model garbles the call.** ([#8774](https://github.com/code-yeongyu/oh-my-openagent/issues/8774)) Most `○ Not remembered` notices came from one model mistake: closing the memory tool's `description` argument with `</description>` instead of `</parameter>`, which folds the note's whole body into the description. The memory tool now splits such a call back into its description and body and saves it, and tells the model what it repaired. A call that cannot be repaired unambiguously is refused as a garbled call rather than a too-long description, so the model resends it instead of trimming, and the notice says so in a plain sentence (`The description was 6,242 characters; the limit is 1,024.`) instead of the raw engine error.
+
 ## [5.0.0-beta.88] - 2026-09-23
 
 ### Changed

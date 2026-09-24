@@ -144,6 +144,10 @@ describe("memory refusal wording", () => {
     ["memory: create: 'file_path' must be a non-empty string", "The request had no file path."],
     ["memory: no memory identity bound to this session yet; the binding is re-established on the next user turn", "Memory is not ready for this session yet."],
     ["memory: writer lock is busy", "Writer lock is busy."],
+    ["memory: create: 'description' contains tool-call scaffolding (\"</description>\"); the arguments of this call were malformed and split incorrectly - resend it with a one-line description and the body in file_text", "The memory call arrived garbled, so nothing was saved."],
+    ["memory: update_description: 'description' exceeds 1024 characters (6242)", "The description was 6,242 characters; the limit is 1,024."],
+    ["memory_apply_patch: reference/a.md: 'description' must be a single line", "The description has to fit on one line."],
+    ["memory_apply_patch: reference/a.md: 'description' must not be empty", "The request had no description."],
   ])("#given %s #when specified #then the why line is a plain sentence", (message, why) => {
     const spec = memoryFailureNoticeSpec(message, { command: "create" })
     expect(spec).toEqual({ title: "○ Not remembered", tone: "dim", why, expandedLine: message })
