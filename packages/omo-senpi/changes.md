@@ -1,3 +1,19 @@
+## model profiles: unset `model_profile` runs `recommended`, served by ranked providers only (#8770)
+
+`components/model-profile/builtin-profiles.ts`: a builtin `recommended` profile (display name
+"Recommended", no family/tier, so it is not a lane) heads the table and is `DEFAULT_MODEL_PROFILE_ID`:
+claude-opus-5-5 medium -> claude-fable-5-1 xhigh -> kimi-k3 max -> gpt-6-astra xhigh -> gpt-6-sol
+medium -> glm-5.3 max, the same ladder as senpi's `RECOMMENDED_DEFAULT_MODELS` (senpi#2074), so the
+TUI (senpi's auto-switch) and the desktop/headless default (this component) start from one order.
+`BuiltinModelProfile.family`/`tier` become optional and `rankedProvidersOnly` is new.
+`resolve.ts`: a `rankedProvidersOnly` definition matches each rung against only its listed
+providers (`matchRankedRung` feeds the shared matcher a filtered registry), so the cross-provider step
+in `delegate-core` cannot reach a gateway aggregator's vendor-prefixed id
+(`opengateway/anthropic/claude-opus-5-5`). The four lanes keep that fallback. Tests: `index.test.ts`
+unset/blank -> recommended, gateway-only Opus -> kimi-coding K3, API + subscription Opus ->
+subscription, and a lane control that still takes the gateway; `builtin-profiles.test.ts` pins the
+chain; `scripts/qa/model-profile-e2e*` `unset`, `unset-skips-gateway`, and the known-profiles list.
+
 ## model profiles: the interactive TUI no longer applies `model_profile`
 
 `components/model-profile/index.ts`: `session_start` returns before any resolution when the event

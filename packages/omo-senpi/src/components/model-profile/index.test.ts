@@ -26,6 +26,9 @@ const SOL: FakeModel = { provider: "github-copilot", id: "gpt-6-sol" }
 const SOL_FAST: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-sol-fast" }
 const ASTRA: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-astra" }
 const UNRELATED: FakeModel = { provider: "example", id: "nothing-in-any-chain" }
+const SUBSCRIPTION_OPUS: FakeModel = { provider: "anthropic-subscription", id: "claude-opus-5-5" }
+const GATEWAY_OPUS: FakeModel = { provider: "opengateway", id: "anthropic/claude-opus-5-5" }
+const CODING_KIMI: FakeModel = { provider: "kimi-coding", id: "kimi-k3" }
 
 function registry(models: readonly FakeModel[]) {
   return {
@@ -80,7 +83,7 @@ describe("createModelProfileComponent", () => {
     }
   })
 
-  test("#given model_profile unset #when the session starts #then Daily Normal is applied", async () => {
+  test("#given model_profile unset #when the session starts #then the recommended ladder is applied", async () => {
     const { pi, start } = harness({})
 
     await start(STARTUP)
@@ -91,20 +94,49 @@ describe("createModelProfileComponent", () => {
     expect(pi.messages[0]?.message).toMatchObject({
       customType: MODEL_PROFILE_APPLIED_TYPE,
       display: true,
-      details: { profile: "daily-normal", model: "anthropic/claude-opus-5-5", reasoning: "medium", skipped: [] },
+      details: { profile: "recommended", model: "anthropic/claude-opus-5-5", reasoning: "medium", skipped: [] },
     })
-    expect(appliedContent(pi)).toContain('"daily-normal" (Daily · Normal)')
+    expect(appliedContent(pi)).toContain('"recommended" (Recommended)')
     expect(appliedContent(pi)).toContain("anthropic/claude-opus-5-5 medium")
   })
 
-  test("#given a blank model_profile #when the session starts #then Daily Normal is applied", async () => {
+  test("#given a blank model_profile #when the session starts #then the recommended ladder is applied", async () => {
     const { pi, start } = harness({ model_profile: "   " })
 
     await start(STARTUP)
 
     expect(pi.sessionModels).toEqual([OPUS])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
-    expect(pi.messages[0]?.message).toMatchObject({ customType: MODEL_PROFILE_APPLIED_TYPE, details: { profile: "daily-normal" } })
+    expect(pi.messages[0]?.message).toMatchObject({ customType: MODEL_PROFILE_APPLIED_TYPE, details: { profile: "recommended" } })
+  })
+
+  test("#given unset and Opus only through a gateway aggregator #when the session starts #then the gateway is skipped and kimi max is applied", async () => {
+    const { pi, start } = harness({}, [GATEWAY_OPUS, CODING_KIMI])
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([CODING_KIMI])
+    expect(pi.sessionThinkingLevels).toEqual(["max"])
+    expect(pi.messages[0]?.message).toMatchObject({
+      details: { profile: "recommended", model: "kimi-coding/kimi-k3", reasoning: "max" },
+    })
+  })
+
+  test("#given unset and Opus on both the API and the Claude subscription #when the session starts #then the subscription lane wins", async () => {
+    const { pi, start } = harness({}, [OPUS, SUBSCRIPTION_OPUS, KIMI])
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([SUBSCRIPTION_OPUS])
+    expect(pi.sessionThinkingLevels).toEqual(["medium"])
+  })
+
+  test("#given daily-normal and Opus only through a gateway #when the session starts #then the lane keeps its cross-provider fallback", async () => {
+    const { pi, start } = harness({ model_profile: "daily-normal" }, [GATEWAY_OPUS, CODING_KIMI])
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([GATEWAY_OPUS])
   })
 
   test("#given daily-normal with only the third rung #when the session starts #then kimi max is applied and skipped rungs are named", async () => {
@@ -200,7 +232,7 @@ describe("createModelProfileComponent", () => {
     expect(pi.messages).toHaveLength(1)
     expect(pi.messages[0]?.message).toMatchObject({
       customType: MODEL_PROFILE_UNKNOWN_TYPE,
-      content: 'OmO Native: model_profile "turbo" is not defined; known profiles: daily-heavy, daily-normal, geeky-heavy, geeky-normal',
+      content: 'OmO Native: model_profile "turbo" is not defined; known profiles: daily-heavy, daily-normal, geeky-heavy, geeky-normal, recommended',
     })
   })
 

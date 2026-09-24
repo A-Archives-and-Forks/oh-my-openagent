@@ -23,8 +23,14 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
  * Builtin GPT rungs rank providers exactly like the `deep-low` / `deep-high`
  * category chains (#8737): the ChatGPT subscription first, then the `openai`
  * API/proxy lane, then Copilot and OpenCode where they serve the model. A user
- * overlay that names `openai/` is scoped to that provider. Unset sessions
- * default to Daily · Normal.
+ * overlay that names `openai/` is scoped to that provider.
+ *
+ * Unset sessions run `recommended`, which is not a lane (no family/tier): the same
+ * ladder senpi's `recommended-models` builtin ships (`RECOMMENDED_DEFAULT_MODELS`,
+ * senpi#2074), so the TUI and the desktop start from one order. Its rungs are served
+ * ONLY by their ranked lanes (`rankedProvidersOnly`): the cross-provider fallback the
+ * lanes keep would otherwise pull a gateway aggregator's vendor-prefixed copy
+ * (`opengateway/anthropic/claude-opus-5-5`) into the default.
  */
 export type ModelProfileFamily = "daily" | "geeky"
 export type ModelProfileTier = "normal" | "heavy"
@@ -32,13 +38,16 @@ export type ModelProfileTier = "normal" | "heavy"
 export type BuiltinModelProfile = {
   readonly displayName: string
   readonly description: string
-  readonly family: ModelProfileFamily
-  readonly tier: ModelProfileTier
+  /** Picker axes; absent on `recommended`, which is the default rather than a lane. */
+  readonly family?: ModelProfileFamily
+  readonly tier?: ModelProfileTier
+  /** Serve each rung only from its listed providers, with no cross-provider fallback. */
+  readonly rankedProvidersOnly?: boolean
   readonly models: readonly DelegateFallbackEntry[]
 }
 
 /** Fresh-session default when `model_profile` is unset. Not written back to config. */
-export const DEFAULT_MODEL_PROFILE_ID = "daily-normal"
+export const DEFAULT_MODEL_PROFILE_ID = "recommended"
 
 const CLAUDE_PROVIDERS = ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"] as const
 const KIMI_PROVIDERS = ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"] as const
@@ -52,6 +61,19 @@ const GPT_PROVIDERS = ["chatgpt-subscription", "openai", "github-copilot", "open
 // Every Claude rung is headed by `anthropic-subscription`, senpi's Claude subscription
 // lane, exactly like the category chains (#8051): rung provider order IS the ranking.
 export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile>> = Object.freeze({
+  recommended: {
+    displayName: "Recommended",
+    description: "The best model you have connected, in OmO's recommended order.",
+    rankedProvidersOnly: true,
+    models: [
+      { providers: [...CLAUDE_PROVIDERS], model: "claude-opus-5-5", variant: "medium" },
+      { providers: [...CLAUDE_PROVIDERS], model: "claude-fable-5-1", variant: "xhigh" },
+      { providers: [...KIMI_PROVIDERS], model: "kimi-k3", variant: "max" },
+      { providers: [...GPT_PROVIDERS], model: "gpt-6-astra", variant: "xhigh" },
+      { providers: [...GPT_PROVIDERS], model: "gpt-6-sol", variant: "medium" },
+      { providers: [...GLM_PROVIDERS], model: "glm-5.3", variant: "max" },
+    ],
+  },
   "daily-normal": {
     family: "daily",
     tier: "normal",

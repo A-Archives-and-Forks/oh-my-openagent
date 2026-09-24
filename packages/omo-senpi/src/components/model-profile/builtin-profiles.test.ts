@@ -5,7 +5,8 @@ import { describe, expect, it } from "bun:test"
 import { BUILTIN_MODEL_PROFILES, DEFAULT_MODEL_PROFILE_ID } from "./builtin-profiles"
 import { KNOWN_MODELS } from "../telemetry/model-vocabulary"
 
-const EXPECTED_IDS = ["daily-normal", "daily-heavy", "geeky-normal", "geeky-heavy"] as const
+const LANE_IDS = ["daily-normal", "daily-heavy", "geeky-normal", "geeky-heavy"] as const
+const EXPECTED_IDS = ["recommended", ...LANE_IDS] as const
 
 const BANNED_VENDOR_TOKENS: readonly string[] = [["mini", "max"].join(""), ["gem", "ini"].join("")]
 
@@ -22,7 +23,7 @@ function chainOf(profile: string): readonly string[] {
 }
 
 describe("BUILTIN_MODEL_PROFILES", () => {
-  it("ships exactly the four lane profiles in picker order", () => {
+  it("ships the recommended default then the four lane profiles in picker order", () => {
     expect(Object.keys(BUILTIN_MODEL_PROFILES)).toEqual([...EXPECTED_IDS])
   })
 
@@ -31,17 +32,41 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(BUILTIN_MODEL_PROFILES["daily-heavy"]?.displayName).toBe("Daily · Heavy")
     expect(BUILTIN_MODEL_PROFILES["geeky-normal"]?.displayName).toBe("Geeky · Normal")
     expect(BUILTIN_MODEL_PROFILES["geeky-heavy"]?.displayName).toBe("Geeky · Heavy")
-    const pairs = Object.values(BUILTIN_MODEL_PROFILES).map((profile) => `${profile.family}:${profile.tier}`)
+    const pairs = LANE_IDS.map((id) => `${BUILTIN_MODEL_PROFILES[id]?.family}:${BUILTIN_MODEL_PROFILES[id]?.tier}`)
     expect(pairs).toEqual(["daily:normal", "daily:heavy", "geeky:normal", "geeky:heavy"])
     for (const id of EXPECTED_IDS) {
       expect(BUILTIN_MODEL_PROFILES[id]?.description.length ?? 0).toBeGreaterThan(0)
     }
   })
 
-  it("uses the daily-normal leaf as the unset-config default id", () => {
-    expect(Object.hasOwn(BUILTIN_MODEL_PROFILES, DEFAULT_MODEL_PROFILE_ID)).toBe(true)
-    expect(BUILTIN_MODEL_PROFILES[DEFAULT_MODEL_PROFILE_ID]?.family).toBe("daily")
-    expect(BUILTIN_MODEL_PROFILES[DEFAULT_MODEL_PROFILE_ID]?.tier).toBe("normal")
+  it("uses recommended, which is not a lane, as the unset-config default id", () => {
+    expect(DEFAULT_MODEL_PROFILE_ID).toBe("recommended")
+    const recommended = BUILTIN_MODEL_PROFILES[DEFAULT_MODEL_PROFILE_ID]
+    expect(recommended?.displayName).toBe("Recommended")
+    expect(recommended?.family).toBeUndefined()
+    expect(recommended?.tier).toBeUndefined()
+    expect(recommended?.rankedProvidersOnly).toBe(true)
+  })
+
+  // Mirrors senpi's RECOMMENDED_DEFAULT_MODELS (recommended-models/index.ts, senpi#2074), so the TUI
+  // and the desktop start from one order. Change both together.
+  it("orders recommended opus medium, fable xhigh, kimi max, astra xhigh, sol medium, glm max", () => {
+    expect(chainOf("recommended")).toEqual([
+      "claude-opus-5-5 medium",
+      "claude-fable-5-1 xhigh",
+      "kimi-k3 max",
+      "gpt-6-astra xhigh",
+      "gpt-6-sol medium",
+      "glm-5.3 max",
+    ])
+  })
+
+  it("never lists a gateway aggregator on a recommended rung", () => {
+    const gateways = ["opengateway", "openrouter", "vercel-ai-gateway", "cloudflare-ai-gateway"]
+    const offenders = (BUILTIN_MODEL_PROFILES["recommended"]?.models ?? []).flatMap((rung) =>
+      rung.providers.filter((provider) => gateways.includes(provider)),
+    )
+    expect(offenders).toEqual([])
   })
 
   it("gives every rung at least one provider and a model id", () => {

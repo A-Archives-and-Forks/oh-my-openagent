@@ -23,6 +23,8 @@ export type ModelProfileRung = {
 export type ModelProfileDefinition = {
   readonly profile: ModelProfileSummary
   readonly models: readonly ModelProfileRung[]
+  /** Builtin `recommended`: a rung is served only by its listed providers (no cross-provider step). */
+  readonly rankedProvidersOnly?: boolean
 }
 
 export type ResolveModelProfileInput = {
@@ -98,10 +100,11 @@ export function mergeModelProfiles(
         id,
         displayName: builtin.displayName,
         source: "builtin",
-        family: builtin.family,
-        tier: builtin.tier,
+        ...(builtin.family !== undefined ? { family: builtin.family } : {}),
+        ...(builtin.tier !== undefined ? { tier: builtin.tier } : {}),
       },
       models: builtin.models.map(builtinRung),
+      ...(builtin.rankedProvidersOnly === true ? { rankedProvidersOnly: true } : {}),
     })
   }
   for (const [id, entry] of Object.entries(profiles ?? {})) {
@@ -169,13 +172,24 @@ function matchScopedUserRung(rung: ModelProfileRung, availableModels: ReadonlySe
   return undefined
 }
 
+// The builtin matcher, fed only the rung's own providers: the cross-provider step inside it then
+// has nothing outside the ranking to reach, so a gateway's vendor-prefixed copy never matches.
+function matchRankedRung(rung: ModelProfileRung, availableModels: ReadonlySet<string>): RungMatch | undefined {
+  const providers = new Set(rung.providers)
+  const ranked = new Set([...availableModels].filter((model) => providers.has(model.split("/")[0] ?? "")))
+  return ranked.size === 0 ? undefined : matchRung(rung, ranked)
+}
+
 function matchProfileRung(
   rung: ModelProfileRung,
   availableModels: ReadonlySet<string>,
-  source: ModelProfileSource,
+  definition: ModelProfileDefinition,
 ): RungMatch | undefined {
-  if (source === "user" && rung.providers.length > 0) {
+  if (definition.profile.source === "user" && rung.providers.length > 0) {
     return matchScopedUserRung(rung, availableModels)
+  }
+  if (definition.rankedProvidersOnly === true) {
+    return matchRankedRung(rung, availableModels)
   }
   return matchRung(rung, availableModels)
 }
@@ -214,7 +228,7 @@ export function resolveModelProfile(input: ResolveModelProfileInput): ModelProfi
   const skipped: string[] = []
   if (availableModels.size > 0) {
     for (const rung of definition.models) {
-      const match = matchProfileRung(rung, availableModels, definition.profile.source)
+      const match = matchProfileRung(rung, availableModels, definition)
       if (match !== undefined) {
         return { kind: "resolved", profile: definition.profile, ...match, skipped }
       }
