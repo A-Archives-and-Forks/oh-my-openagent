@@ -12,6 +12,8 @@ import { join } from "node:path"
  * @typedef {Object} SkillSource
  * @property {string} name
  * @property {string} source
+ * @property {string[]} [sharedAssets] - Paths relative to `shared-skills/skills/<name>` copied byte-for-byte
+ *   over the shipped native skill after its own copy; they must not exist in the native source.
  */
 
 /**
@@ -61,8 +63,11 @@ export function createNativeSkillSources(repoRoot) {
       source: join(nativeSkillsRoot, "ulw-plan"),
     },
     {
+      // The deliverable runtime and its gate reference are edition-neutral, so they live once in the
+      // shared pool and are overlaid at sync time instead of being duplicated into the native source.
       name: "ulw-research",
       source: join(nativeSkillsRoot, "ulw-research"),
+      sharedAssets: ["scripts", "references/report-gates.md"],
     },
   ]
 
