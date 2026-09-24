@@ -1,3 +1,36 @@
+## skills: the hyperplan restart hint names the brand command
+
+`skills/hyperplan/SKILL.md` told the user to "Restart senpi without `--no-omo-task`". On OmO
+Native the command is `omo`. The hint now names `omo` on OmO Native and `senpi` on a plain senpi
+install, matching the `--list-tips` brand-command rule.
+
+## skills: the onboard re-run instruction names the brand command
+
+`skills/onboarding/SKILL.md` still told the user to bring the tour back with `senpi --onboard`.
+On OmO Native that bin is not on PATH (the `--onboard` flag is registered by the omo-senpi
+onboarding component and reached only through the branded launcher). The hint now uses
+`omo --onboard` on OmO Native and `senpi --onboard` on a plain senpi install, matching the
+`--list-tips` brand-command rule. Lane 2 (Migration help) is unchanged.
+
+## skills: the list-tips instruction names the command the running product actually ships
+
+`skills/give-me-tips/SKILL.md`, `skills/onboarding/SKILL.md`, and `skills/AGENTS.md` told the
+agent to run `senpi --list-tips`, but an OmO Native machine (a bun/npm global `omo-ai` install)
+links only the top-level `omo` bin - `@code-yeongyu/senpi` arrives as a dependency, so `senpi`
+is not on PATH and the instructed command failed when first-run onboarding tried to list tips.
+The skills now instruct the brand command of the product that is running: `omo --list-tips`
+under OmO Native (the omo launcher passes unknown flags through to the engine, and the session
+environment carries the `OMO_NATIVE=1` / `OMO_BIN` markers the skill tells the agent to detect),
+`senpi --list-tips` under a plain senpi install, with `"$OMO_BIN" --list-tips` as the fallback
+when `omo` itself is not on PATH (bunx/npx launches).
+
+||||||| 530692bc0
+
+## model-profile: Geeky · Normal runs gpt-5.6-sol medium (#8807)
+
+`src/components/model-profile/builtin-profiles.ts`: `geeky-normal` is one rung, `gpt-5.6-sol` at `medium` on `chatgpt-subscription`, `openai`, `github-copilot`, `opencode` (the shared `GPT_PROVIDERS` ranking), replacing `gpt-6-sol-fast` then `gpt-6-sol`. There is no GPT-6 fallback rung, so a registry serving only GPT-6 Sol reports the lane unavailable.
+
+Tests: `builtin-profiles.test.ts` pins the new chain; `resolve.test.ts` covers the Copilot-only, subscription-over-Copilot, API-over-unlisted-provider and GPT-6-only (unavailable) cases; `index.test.ts` applies `github-copilot/gpt-5.6-sol` medium. `scripts/qa/model-profile-e2e-scenarios.mjs`: the geeky-normal scenarios serve `gpt-5.6-sol` (`geeky-normal-api-sol`, `geeky-normal-copilot-sol`, `geeky-normal-sol`), and `geeky-normal-gpt6-only-unavailable` proves the lane does not fall back to GPT-6.
 ## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
 
 `skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
