@@ -93,12 +93,24 @@ function readSqliteStore(id, path, expectedVersion, DatabaseSync, providerMap, p
   }
 }
 
-async function buildPlan(options, providerMap) {
+function opencodeAuthPath(options) {
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
-  const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share")
+  return join(env.XDG_DATA_HOME || join(home, ".local", "share"), "opencode", "auth.json")
+}
+
+// The opencode providers signed in with OAuth, read by the same reader as the credential plan; the
+// model-choice stage carries their models to the provider that plan tells the user to /login to.
+function opencodeOauthProviders(options) {
   const plan = { candidates: [], oauth: [], notices: [] }
-  readOpencode(join(dataHome, "opencode", "auth.json"), providerMap, plan)
+  readOpencode(opencodeAuthPath(options), readProviderMap(), plan)
+  return new Set(plan.oauth)
+}
+
+async function buildPlan(options, providerMap) {
+  const home = options.home ?? homedir()
+  const plan = { candidates: [], oauth: [], notices: [] }
+  readOpencode(opencodeAuthPath(options), providerMap, plan)
   try {
     const { DatabaseSync } = await (options.loadSqlite ?? (() => import("node:sqlite")))()
     for (const [id, directory, version] of SQLITE_STORES) {
@@ -225,5 +237,5 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   await importOpencodeAssets({ runtime, agentDir, args, confirm })
   await importOpencodeProviders({ plan: providers, agentDir, args, confirm })
   // Last: a default model or category may name a custom provider the stage above just carried.
-  await importModelChoices({ runtime, agentDir, args, confirm, providers })
+  await importModelChoices({ runtime, agentDir, args, confirm, providers, oauthProviders: opencodeOauthProviders(runtime) })
 }

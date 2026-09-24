@@ -172,7 +172,7 @@ export async function importModelChoices(stage) {
     process.stdout.write(`WARN senpi: could not read the engine's model list (${error.message}); model choices were not carried\n`)
     return
   }
-  const plan = convertModelChoices(raw, registry)
+  const plan = convertModelChoices(raw, registry, stage.oauthProviders)
   const settings = readTarget(settingsTargetPath(stage.agentDir))
   const items = planItems(plan, omo, settings).map((item) => ({ ...item, state: classify(item) }))
   process.stdout.write(formatPlan(items, plan.dropped))

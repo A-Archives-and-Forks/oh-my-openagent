@@ -166,6 +166,23 @@ describe("omo setup model choices", () => {
     })
   })
 
+  describe("#given an opencode default model on openai signed in with a ChatGPT OAuth login", () => {
+    test("#when setup is accepted #then it is carried to the provider setup tells the user to /login to", () => {
+      // given
+      const item = sandbox()
+      write(join(item.home, ".local", "share", "opencode", "auth.json"), { openai: { type: "oauth", refresh: "r", access: "a", expires: 1 } })
+      write(join(item.opencodeDir, "opencode.json"), { model: "openai/gpt-5.5" })
+
+      // when
+      const stdout = run(item, ["setup", "--yes"])
+
+      // then
+      expect(stdout).toContain("/login chatgpt-subscription")
+      expect(readJson(item.settings)).toEqual({ defaultProvider: "chatgpt-subscription", defaultModel: "gpt-5.5" })
+      expect(nativeView(item).config.model_profile).toBe("chatgpt-subscription/gpt-5.5")
+    })
+  })
+
   describe("#given an omo.jsonc only its owner may read", () => {
     test.skipIf(process.platform === "win32")("#when setup edits it #then it stays mode 0600", () => {
       // given

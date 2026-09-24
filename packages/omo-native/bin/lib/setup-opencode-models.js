@@ -103,7 +103,13 @@ export function hasModelChoices(raw) {
     || [raw.opencodeAgents, raw.categories, raw.agents].some((entries) => Object.values(entries).some(hasModelChoice))
 }
 
-function engineProvider(provider, providerMap) {
+function engineProvider(provider, modelId, context) {
+  const { providerMap, oauthProviders, registry } = context
+  // A provider opencode signed in to with OAuth (`openai` through a ChatGPT plan) is served here by
+  // the provider the credential stage says to `/login` to (provider-map.json `oauthLogins`), not by
+  // the same id, which would need an API key the user never had.
+  const login = oauthProviders.has(provider) && Object.hasOwn(providerMap.oauthLogins, provider) ? providerMap.oauthLogins[provider] : undefined
+  if (login !== undefined && registry.models.get(login)?.has(modelId)) return login
   if (providerMap.builtinProviderIds.includes(provider)) return provider
   return providerMap.providers[provider] ?? provider
 }
@@ -131,7 +137,7 @@ export function translateModelRef(raw, context) {
   }
   const source = selector.slice(0, slash)
   const modelId = selector.slice(slash + 1)
-  const provider = engineProvider(source, context.providerMap)
+  const provider = engineProvider(source, modelId, context)
   const ids = context.registry.models.get(provider)
   if (ids === undefined) return { reason: `provider ${source} is not one omo serves or was carried over` }
   if (!ids.has(modelId)) {
@@ -242,9 +248,12 @@ function convertDefault(model, context, dropped) {
   return { source: model, provider: result.provider, modelId: result.modelId, ref: `${result.provider}/${result.modelId}` }
 }
 
-/** The raw choices converted against `registry` (engine-models.js `loadEngineModels`). */
-export function convertModelChoices(raw, registry) {
-  const context = { registry, providerMap: readProviderMap() }
+/**
+ * The raw choices converted against `registry` (engine-models.js `loadEngineModels`).
+ * `oauthProviders` are the opencode provider ids whose opencode credential is an OAuth login.
+ */
+export function convertModelChoices(raw, registry, oauthProviders = new Set()) {
+  const context = { registry, providerMap: readProviderMap(), oauthProviders }
   const dropped = []
   const defaultModel = convertDefault(raw.model, context, dropped)
   if (raw.smallModel !== undefined) dropped.push(`small_model ${raw.smallModel}: omo has no small-model setting`)
