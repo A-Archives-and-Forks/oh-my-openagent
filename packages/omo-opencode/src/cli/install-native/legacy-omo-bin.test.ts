@@ -208,6 +208,17 @@ describe("resolveOmoBinEnvironment", () => {
     expect(environment.isWindows).toBe(false)
   })
 
+  test("#given relative and project node_modules/.bin PATH entries #when resolving #then only global dirs are scanned", () => {
+    // given
+    const env = { PATH: ".::node_modules/.bin:/work/app/node_modules/.bin:/usr/local/bin", BUN_INSTALL: "/home/dev/.bun" }
+
+    // when
+    const environment = resolveOmoBinEnvironment({ env, platform: "linux", homeDir: "/home/dev" })
+
+    // then
+    expect(environment.pathDirectories).toEqual(["/usr/local/bin"])
+  })
+
   test("#given the bun bin dir already on PATH #when resolving #then it is not probed twice", () => {
     // given
     const env = { PATH: "/home/dev/.bun/bin:/usr/bin" }

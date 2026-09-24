@@ -1,5 +1,5 @@
 import { lstatSync, readFileSync, realpathSync } from "node:fs"
-import { delimiter, dirname, isAbsolute, join } from "node:path"
+import { delimiter, dirname, isAbsolute, join, win32 } from "node:path"
 
 export const NATIVE_OMO_PACKAGE = "omo-ai"
 export const LEGACY_OMO_BIN_PACKAGES: readonly string[] = ["oh-my-openagent", "oh-my-opencode", "lazycodex"]
@@ -49,10 +49,14 @@ export function resolveOmoBinEnvironment(input: {
 }): OmoBinEnvironment {
   const isWindows = input.platform === "win32"
   const pathValue = input.env["PATH"] ?? input.env["Path"] ?? ""
+  // Only global bin dirs are in scope. A relative entry (`.`, `node_modules/.bin`) or a project's
+  // `node_modules/.bin` (which `npx`/`bunx` put on PATH) holds a project dependency, not the global
+  // `omo` the rename orphaned, and removing it would break that project.
   const pathDirectories = pathValue
     .split(isWindows ? ";" : delimiter)
     .map((entry) => entry.trim())
-    .filter((entry) => entry !== "")
+    .filter((entry) => (isWindows ? win32.isAbsolute(entry) : isAbsolute(entry)))
+    .filter((entry) => !/(?:^|[\\/])node_modules[\\/]\.bin[\\/]?$/.test(entry))
   const bunInstall = input.env["BUN_INSTALL"]
   const bunBinDir = bunInstall ? join(bunInstall, "bin") : join(input.homeDir, ".bun", "bin")
   const extraDirectories = pathDirectories.includes(bunBinDir) ? [] : [bunBinDir]
