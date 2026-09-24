@@ -23,6 +23,7 @@ const OPUS: FakeModel = { provider: "anthropic", id: "claude-opus-5-5" }
 const KIMI: FakeModel = { provider: "moonshotai", id: "kimi-k3" }
 const GLM: FakeModel = { provider: "zai-coding-plan", id: "glm-5.3" }
 const SOL: FakeModel = { provider: "github-copilot", id: "gpt-6-sol" }
+const SOL_56_COPILOT: FakeModel = { provider: "github-copilot", id: "gpt-5.6-sol" }
 const SOL_FAST: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-sol-fast" }
 const ASTRA: FakeModel = { provider: "chatgpt-subscription", id: "gpt-6-astra" }
 const UNRELATED: FakeModel = { provider: "example", id: "nothing-in-any-chain" }
@@ -173,14 +174,14 @@ describe("createModelProfileComponent", () => {
     expect(appliedContent(pi)).toContain("anthropic/claude-fable-5-1 xhigh")
   })
 
-  test("#given geeky-normal with only Copilot Sol #when the session starts #then gpt-6-sol medium is applied", async () => {
-    const { pi, start } = harness({ model_profile: "geeky-normal" }, [SOL, UNRELATED])
+  test("#given geeky-normal with only Copilot GPT-5.6 Sol #when the session starts #then gpt-5.6-sol medium is applied", async () => {
+    const { pi, start } = harness({ model_profile: "geeky-normal" }, [SOL_56_COPILOT, SOL, UNRELATED])
 
     await start(STARTUP)
 
-    expect(pi.sessionModels).toEqual([SOL])
+    expect(pi.sessionModels).toEqual([SOL_56_COPILOT])
     expect(pi.sessionThinkingLevels).toEqual(["medium"])
-    expect(appliedContent(pi)).toContain("github-copilot/gpt-6-sol medium")
+    expect(appliedContent(pi)).toContain("github-copilot/gpt-5.6-sol medium")
   })
 
   test("#given geeky-heavy #when the session starts #then astra xhigh is applied", async () => {

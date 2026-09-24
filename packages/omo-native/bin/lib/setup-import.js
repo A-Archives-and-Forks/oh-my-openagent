@@ -9,6 +9,7 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
+import { formatCredentialGuidance } from "./setup-guidance.js"
 
 export const API_KEY_TYPE_ACCEPTLIST = new Set(["api_key"])
 const SQLITE_STORES = [
@@ -25,7 +26,6 @@ function readProviderMap() {
 }
 
 function targetProvider(provider, providerMap) {
-  if (providerMap.excludedHostedGatewayIds.includes(provider)) return undefined
   if (providerMap.builtinProviderIds.includes(provider)) return provider
   return providerMap.providers[provider]
 }
@@ -33,6 +33,14 @@ function targetProvider(provider, providerMap) {
 function candidate(provider, key, source, providerMap) {
   const target = targetProvider(provider, providerMap)
   return target ? { provider: target, key, source } : { provider, source, unmapped: true }
+}
+
+// opencode keeps a pasted key verbatim and never interprets it, but the engine resolves every stored
+// key as a config value: a leading `!` runs a shell command and `$NAME` / `${NAME}` interpolate the
+// environment. `$$` and `$!` are the engine's literal escapes, so the engine reads back the exact
+// bytes opencode held.
+function literalConfigValue(value) {
+  return value.replace(/[$!]/g, "$$$&")
 }
 
 function readOpencode(path, providerMap, plan) {
@@ -45,7 +53,7 @@ function readOpencode(path, providerMap, plan) {
       if (entry.type === "oauth") {
         plan.oauth.push(provider)
       } else if (entry.type === "api" && typeof entry.key === "string") {
-        plan.candidates.push(candidate(provider, entry.key, "opencode", providerMap))
+        plan.candidates.push(candidate(provider, literalConfigValue(entry.key), "opencode", providerMap))
       }
     }
   } catch (error) {
@@ -90,11 +98,10 @@ function readSqliteStore(id, path, expectedVersion, DatabaseSync, providerMap, p
   }
 }
 
-async function buildPlan(options) {
+async function buildPlan(options, providerMap) {
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
   const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share")
-  const providerMap = readProviderMap()
   const plan = { candidates: [], oauth: [], notices: [] }
   readOpencode(join(dataHome, "opencode", "auth.json"), providerMap, plan)
   try {
@@ -147,7 +154,7 @@ function list(label, ids) {
   return `${label}: ${ids.length > 0 ? ids.join(", ") : "none"}`
 }
 
-function printPlan(result, dryRun) {
+function printPlan(result, dryRun, providerMap, existing) {
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")
   process.stdout.write(`${[
     list("planned-add", result.additions.map((item) => item.provider)),
@@ -155,15 +162,17 @@ function printPlan(result, dryRun) {
     list("skipped-oauth", result.skippedOauth),
     list("skipped-unmapped", result.skippedUnmapped),
   ].join("\n")}\n`)
+  process.stdout.write(formatCredentialGuidance(result, providerMap, existing))
 }
 
+// The plan (printed on every run, dry or not) already carries the per-credential guidance, so the
+// closing counts stay counts - printing the sign-in steps twice reads as two different instructions.
 function printCounts(result) {
   process.stdout.write([
     `imported: ${result.additions.length}`,
     `skipped-existing: ${result.skippedExisting.length}`,
     `skipped-oauth: ${result.skippedOauth.length}`,
     `skipped-unmapped: ${result.skippedUnmapped.length}`,
-    "Use `omo auth` to sign in to OAuth providers.",
   ].join("\n") + "\n")
 }
 
@@ -211,7 +220,8 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   const inventory = await detectHarnesses(runtime)
   printSetupReport(inventory)
   printModelReport(inventory)
-  const plan = await buildPlan(runtime)
+  const providerMap = readProviderMap()
+  const plan = await buildPlan(runtime, providerMap)
   for (const notice of plan.notices) process.stdout.write(`${notice}\n`)
   const current = readTarget(target)
   if (current.malformed) {
@@ -220,7 +230,7 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   }
   const result = classify(plan, current.entries)
   const dryRun = args.includes("--dry-run")
-  printPlan(result, dryRun)
+  printPlan(result, dryRun, providerMap, current.entries)
   if (dryRun) return
   if (result.additions.length === 0) {
     printCounts(result)
