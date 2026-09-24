@@ -91,6 +91,24 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given placeholders the engine has no spelling for", () => {
+    describe("#when they are planned", () => {
+      test("#then those servers are refused with a notice instead of carrying literal placeholder text", () => {
+        const plan = fixture({
+          mcp: {
+            "file-header": { type: "remote", url: "https://f.test/mcp", headers: { Authorization: "Bearer {file:~/.secrets/token}" } },
+            "dashed-env": { type: "local", command: ["tool"], environment: { TOKEN: "{env:MY-TOKEN}" } },
+            plain: { type: "local", command: ["tool"], environment: { TOKEN: "{env:MY_TOKEN}" } },
+          },
+        })
+
+        expect(plan.mcpServers).toEqual([{ name: "plain", config: { type: "stdio", command: "tool", env: { TOKEN: "${MY_TOKEN}" } } }])
+        expect(plan.notices.join("\n")).toContain("file-header")
+        expect(plan.notices.join("\n")).toContain("dashed-env")
+      })
+    })
+  })
+
   describe("#given an opencode.jsonc with comments and a trailing comma", () => {
     describe("#when it is planned", () => {
       test("#then it parses", () => {

@@ -82,6 +82,16 @@ function convertPlaceholders(value) {
   return typeof value === "string" ? value.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, "${$1}") : value
 }
 
+// What is left after conversion is a placeholder the engine has no spelling for: `{file:path}`
+// (OpenCode inlines that file's contents) or `{env:NAME}` with a NAME outside [A-Za-z_][A-Za-z0-9_]*.
+// Copied as-is it would reach the server as literal text, so the server is refused instead.
+function unconvertedPlaceholder(value) {
+  if (typeof value === "string") return /\{(?:file|env):[^}]+\}/.test(value)
+  if (Array.isArray(value)) return value.some(unconvertedPlaceholder)
+  if (value !== null && typeof value === "object") return Object.values(value).some(unconvertedPlaceholder)
+  return false
+}
+
 function convertRecord(record) {
   if (record === null || typeof record !== "object" || Array.isArray(record)) return undefined
   const entries = Object.entries(record).filter(([, value]) => typeof value === "string")
@@ -127,6 +137,10 @@ function convertServer(name, entry, notices) {
   }
   if (rejectedByEngine(config)) {
     notices.push(`NOTICE opencode: mcp server ${name} uses command substitution, which omo refuses to run; not imported`)
+    return undefined
+  }
+  if (unconvertedPlaceholder(config)) {
+    notices.push(`NOTICE opencode: mcp server ${name} uses a {file:...} or {env:...} placeholder omo cannot express; not imported - put the value in an environment variable and reference it as \${NAME} in mcp.json`)
     return undefined
   }
   return config
