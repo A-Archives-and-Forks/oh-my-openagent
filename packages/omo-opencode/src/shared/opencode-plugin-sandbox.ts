@@ -1,6 +1,7 @@
-import { existsSync, realpathSync, rmSync } from "node:fs"
+import { existsSync, realpathSync, renameSync, rmSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
 
+import { log } from "./logger"
 import { ACCEPTED_PACKAGE_NAMES } from "./plugin-identity"
 
 /**
@@ -66,10 +67,25 @@ export function isPluginSandboxDir(dir: string, cacheDir: string): boolean {
  * Removes the whole sandbox directory, not just `node_modules/<package>`:
  * the sandbox's own `package.json`/lockfile can re-pin the previous version
  * when OpenCode reinstalls the spec.
+ *
+ * The directory is renamed aside before it is deleted. `Npm.add()` only checks
+ * that `node_modules/<package>` exists, so a recursive delete that fails part
+ * way (EBUSY/EPERM on a file Windows holds open, EACCES) or that races an
+ * OpenCode start would leave a half-deleted copy OpenCode then loads. A rename
+ * is atomic: it either fails with the sandbox intact or the spec path is gone.
  */
 export function removePluginSandbox(dir: string, cacheDir: string): boolean {
   if (!isPluginSandboxDir(dir, cacheDir)) return false
   if (!existsSync(dir)) return false
-  rmSync(dir, { recursive: true, force: true })
+  const discarded = join(dirname(dir), `.${basename(dir)}.discarded-${process.pid}-${Date.now()}`)
+  renameSync(dir, discarded)
+  try {
+    rmSync(discarded, { recursive: true, force: true })
+  } catch (error) {
+    // The spec path is already gone, so the refresh took effect; what is left
+    // is a dot-directory OpenCode never reads.
+    if (!(error instanceof Error)) throw error
+    log(`[plugin-sandbox] Refreshed ${dir}, but could not delete the discarded copy ${discarded}: ${error.message}`)
+  }
   return true
 }

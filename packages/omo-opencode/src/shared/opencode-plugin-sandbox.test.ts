@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -117,6 +117,44 @@ describe("removePluginSandbox", () => {
     // then
     expect(removed).toBe(false)
     expect(existsSync(foreign)).toBe(true)
+  })
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "#given the sandbox cannot be detached from the packages dir #when removing #then it throws and the installed package is left whole",
+    () => {
+      // given - a read-only packages dir stands in for a Windows file lock or
+      // EACCES: entries inside the sandbox are deletable, the sandbox itself is not
+      const cacheDir = tempDir()
+      const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+      const installedManifest = join(sandboxDir, "node_modules", "oh-my-openagent", "package.json")
+      writeFileSync(installedManifest, JSON.stringify({ name: "oh-my-openagent", version: "4.19.4" }))
+      const packagesDir = getPluginSandboxRoot(cacheDir)
+      chmodSync(packagesDir, 0o555)
+
+      try {
+        // when / then - OpenCode's Npm.add() would load a half-deleted copy, so
+        // a failed removal must not have deleted anything
+        expect(() => removePluginSandbox(sandboxDir, cacheDir)).toThrow()
+        expect(existsSync(installedManifest)).toBe(true)
+        expect(readdirSync(packagesDir)).toEqual(["oh-my-openagent@latest"])
+      } finally {
+        chmodSync(packagesDir, 0o755)
+      }
+    },
+  )
+
+  it("#given a successful removal #when listing the packages dir #then no discarded copy is left behind", () => {
+    // given
+    const cacheDir = tempDir()
+    const sandboxDir = seedSandbox(cacheDir, "oh-my-openagent@latest")
+    const sibling = seedSandbox(cacheDir, "some-other-plugin@latest")
+
+    // when
+    removePluginSandbox(sandboxDir, cacheDir)
+
+    // then
+    expect(readdirSync(getPluginSandboxRoot(cacheDir))).toEqual(["some-other-plugin@latest"])
+    expect(existsSync(sibling)).toBe(true)
   })
 
   it("#given a sandbox that is already gone #when removing #then it reports nothing removed", () => {
