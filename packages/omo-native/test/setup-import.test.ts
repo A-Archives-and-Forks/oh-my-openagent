@@ -243,6 +243,23 @@ describe("omo setup credential inheritance", () => {
     expect(result.stdout.split("/login chatgpt-subscription").length - 1).toBe(1)
   })
 
+  test("#given the user already signed in to the omo provider #when setup re-runs #then it does not ask for that sign-in again", () => {
+    const item = fixture()
+    write(join(item.agentDir, "auth.json"), JSON.stringify({
+      "chatgpt-subscription": { type: "oauth", access: "EXISTING", refresh: "EXISTING", expires: 1 },
+    }))
+    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
+      openai: { type: "oauth", access: secrets[0] },
+      anthropic: { type: "oauth", access: secrets[1] },
+    }))
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).not.toContain("/login chatgpt-subscription")
+    expect(result.stdout).toContain("/login anthropic")
+  })
+
   test("#given a dry run with skipped credentials #when setup previews #then the same guidance is shown", () => {
     const item = fixture()
     write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({

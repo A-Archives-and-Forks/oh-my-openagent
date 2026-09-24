@@ -154,7 +154,7 @@ function list(label, ids) {
   return `${label}: ${ids.length > 0 ? ids.join(", ") : "none"}`
 }
 
-function printPlan(result, dryRun, providerMap) {
+function printPlan(result, dryRun, providerMap, existing) {
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")
   process.stdout.write(`${[
     list("planned-add", result.additions.map((item) => item.provider)),
@@ -162,7 +162,7 @@ function printPlan(result, dryRun, providerMap) {
     list("skipped-oauth", result.skippedOauth),
     list("skipped-unmapped", result.skippedUnmapped),
   ].join("\n")}\n`)
-  process.stdout.write(formatCredentialGuidance(result, providerMap))
+  process.stdout.write(formatCredentialGuidance(result, providerMap, existing))
 }
 
 // The plan (printed on every run, dry or not) already carries the per-credential guidance, so the
@@ -230,7 +230,7 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   }
   const result = classify(plan, current.entries)
   const dryRun = args.includes("--dry-run")
-  printPlan(result, dryRun, providerMap)
+  printPlan(result, dryRun, providerMap, current.entries)
   if (dryRun) return
   if (result.additions.length === 0) {
     printCounts(result)
