@@ -17,6 +17,7 @@ export const COMMANDS = Object.freeze([
 	"outcome render",
 	"outcome state",
 	"outcome verify",
+	"outcome finish",
 	"outcome briefing",
 	"format-extract",
 ])

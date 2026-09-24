@@ -101,8 +101,21 @@ export function runRepairDecide(argv) {
 			: false
 	const { state: next, decision } = decide(state, defects, now, { artifactOk })
 	writeFileSync(statePath, serializeState(next))
+	recordRepair(args.flags, next, decision)
 	const exitCode = decision.action === "block" ? 1 : 0
 	return { json: { command: "repair decide", decision }, summary: `repair: ${decision.action}${decision.reason ? ` (${decision.reason})` : ""}`, exitCode }
+}
+
+/** With a session dir that holds outcome.json, the repair summary and residual list land in the manifest. */
+function recordRepair(flags, state, decision) {
+	const dir = flags["session-dir"] ?? process.env.SESSION_DIR
+	if (!dir) return
+	const file = join(resolve(dir), outcome.MANIFEST_FILENAME)
+	if (!existsSync(file)) return
+	const manifest = outcome.readManifest(file)
+	manifest.repair = { attempts: state.attempts.length, action: decision.action, reason: decision.reason }
+	if (decision.action !== "repair") manifest.residualDefects = decision.residual.map((defect) => ({ ...defect, message: defect.message ?? defect.code }))
+	outcome.writeManifest(file, manifest)
 }
 
 function manifestPath(flags) {
@@ -159,6 +172,17 @@ export function runOutcome(argv) {
 			const result = outcome.verifyManifest(outcome.readManifest(file))
 			return { json: { command: "outcome verify", ...result }, summary: `verify: ${result.ok ? "OK" : `${result.problems.length} problem(s)`}`, exitCode: result.ok ? 0 : 1 }
 		}
+		case "finish": {
+			const manifest = outcome.readManifest(file)
+			const ledgerPath = args.flags.ledger ?? join(sessionDirFrom(args.flags), "sources-ledger.md")
+			const now = nowFrom(args.flags)
+			const facts = outcome.briefingFacts(manifest, existsSync(ledgerPath) ? readText(ledgerPath) : "", now)
+			manifest.finishedAt = now.toISOString()
+			manifest.elapsedMinutes = facts.minutes
+			manifest.sources = { total: facts.sources, domains: facts.domains }
+			outcome.writeManifest(file, manifest)
+			return { json: { command: "outcome finish", finishedAt: manifest.finishedAt, elapsedMinutes: facts.minutes, sources: manifest.sources }, exitCode: 0 }
+		}
 		case "briefing": {
 			const manifest = outcome.readManifest(file)
 			const ledgerPath = args.flags.ledger ?? join(sessionDirFrom(args.flags), "sources-ledger.md")
@@ -168,7 +192,7 @@ export function runOutcome(argv) {
 			return { text: outcome.buildBriefing(manifest, ledger, now), exitCode: 0 }
 		}
 		default:
-			throw new CliError("usage: outcome <init|set|gate|render|state|verify|briefing> ...")
+			throw new CliError("usage: outcome <init|set|gate|render|state|verify|finish|briefing> ...")
 	}
 }
 
