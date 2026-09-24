@@ -1,6 +1,6 @@
 # Migrating from OpenCode
 
-You've been running omo as the OpenCode plugin (oh-my-openagent 4.19.x, or a 5.x beta) and want the standalone `omo` command instead. This page walks that move, one command per step. Nothing here touches OpenCode itself: the plugin keeps working until you remove it, and you can run both side by side for as long as you like.
+You've been running omo as the OpenCode plugin (oh-my-openagent 4.19.x, or a 5.x beta) and want the standalone `omo` command instead. This page walks that move, one command per step. Setup never writes to OpenCode's files, and you can run both editions side by side for as long as you like. The one OpenCode file omo does move, on its first session, is covered in [Keeping OpenCode around](#keeping-opencode-around).
 
 The standalone edition is called **OmO Native**. It ships as the npm package `omo-ai`, installs one command (`omo`), and runs a pinned senpi engine with the OMO extension built in. No host app, no plugin registration.
 
@@ -138,7 +138,17 @@ The habits map like this. Every entry in the right column is a command or key th
 
 ## Keeping OpenCode around
 
-You don't have to choose. The OpenCode plugin keeps loading and working exactly as before; the two editions share nothing on disk except what setup copied, and setup never writes back.
+You don't have to choose. Setup never writes to OpenCode's files, and the OpenCode plugin keeps loading as before. Two things are shared, though.
+
+The first time omo starts a session, it runs the same config migration a 5.x OpenCode plugin runs on its own first start. It moves `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` out of `~/.config/opencode/` into `~/.omo/migration-backup-<timestamp>-opencode-config/`, and a project's `.opencode/` copy into `<project>/.omo/migration-backup-<timestamp>/` the first time omo runs there. A 5.x plugin has already done this and reads `~/.omo/omo.jsonc`, so nothing changes for it. A 4.19.x plugin reads only the old file, so after the move it runs on its defaults. Copy the file back after your first omo session; the migration runs once, so the copy stays:
+
+```bash
+cp ~/.omo/migration-backup-*-opencode-config/.config/opencode/oh-my-openagent.json ~/.config/opencode/
+```
+
+Use the file name you actually had (`ls ~/.omo/migration-backup-*-opencode-config/.config/opencode/` shows it). Setup reads your categories and agents from the backup too, so running `omo setup` after the move still carries them.
+
+`~/.omo/omo.jsonc` is read by omo and by a 5.x OpenCode plugin. Top-level keys apply to both, `[opencode]` only to the plugin, `[native]` only to omo. Setup writes only to `[native]` (or to a `[senpi]` block, the older spelling, when the file still has one).
 
 `omo doctor` tells you what's still installed:
 
