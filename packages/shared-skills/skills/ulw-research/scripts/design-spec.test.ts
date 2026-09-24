@@ -144,3 +144,19 @@ describe("renderDesignSpec", () => {
 		expect(sectionBody(markdown, "Open questions")).toContain("Lineage mode")
 	})
 })
+
+describe("parsePalette with Korean headings", () => {
+	test("#given a spec whose token section is headed in Korean #when parsed #then the bullet hexes under it are the palette", () => {
+		// given
+		const md = ["# design-spec", "## 토큰 (변경 금지)", "- 라이트: bg #faf6ef · fg #24211b · accent #c2410c", "## 그림 표준", "- 테두리 #ffffff"].join("\n")
+		// when
+		const palette = parsePalette(md)
+		// then
+		expect([...palette].sort()).toEqual(["#24211b", "#c2410c", "#faf6ef"])
+	})
+
+	test("#given Korean color and palette headings #when parsed #then each is recognized", () => {
+		expect([...parsePalette("## 팔레트\n- #112233")]).toEqual(["#112233"])
+		expect([...parsePalette("## 색상\n- #445566")]).toEqual(["#445566"])
+	})
+})

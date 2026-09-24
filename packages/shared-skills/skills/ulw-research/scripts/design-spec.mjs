@@ -7,7 +7,8 @@ import { DESIGN_SPEC_SECTIONS, LINEAGE_MODES } from "./contracts.mjs"
 import { hexColors } from "./css-lite.mjs"
 
 const TODO = "TODO: ask"
-const PALETTE_HEADING = /^(palette|tokens|colou?rs?)/i
+// English and Korean section names (the requester writes specs in either language).
+const PALETTE_HEADING = /^(palette|tokens|colou?rs?|\uD1A0\uD070|\uD314\uB808\uD2B8|\uC0C9\uC0C1|\uCEEC\uB7EC)/i
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
 const TOKEN_DECLARATION = /--[\w-]+\s*:\s*([^;]*)/g
@@ -39,7 +40,7 @@ function walkLines(markdown, visit) {
 
 /**
  * Palette = hex values of every `--x: #hex` inside any fenced code block, plus every hex
- * anywhere under a heading named Palette / Tokens / Colors / Colours (subheadings included).
+ * anywhere under a heading named Palette / Tokens / Colors / Colours or their Korean equivalents (subheadings included).
  * @returns {Set<string>} normalized #rrggbb values
  */
 export function parsePalette(specMarkdown) {
