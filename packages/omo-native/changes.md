@@ -1,3 +1,19 @@
+## 2026-09-24 - omo setup carries OpenCode model choices into settings.json and the [native] block (#8846)
+
+### What changed
+
+`bin/lib/setup-opencode-models.js` (new, read-only) reads opencode's `model`, `small_model` and `agent` through `readOpencodeConfig` - a whole-document variant `setup-opencode-assets.js` now exports next to `readOpencodeSection`, both built on one file reader - and the OpenCode edition's `categories` / `agents` from the legacy plugin files (`OPENCODE_CONFIG_DIR` before the global dir, `CONFIG_FILE_NAMES` order), overlaid by the `[opencode]` block of the user omo.json[c]. A legacy file the unification migration already moved is read from the newest `~/.omo/migration-backup-*-opencode-config/<path relative to home>` copy, with a notice naming it. Each `provider/model[:level]` (also the legacy `model(level)`) is translated with `provider-map.json` (for a provider opencode's auth.json holds as an OAuth login, `oauthLogins` first when that provider serves the model, so `openai/gpt-5.5` on a ChatGPT login becomes `chatgpt-subscription/gpt-5.5`) and checked against `bin/lib/engine-models.js` (new): the model ids of `@earendil-works/pi-ai/providers/all` `builtinProviders()`, the catalog model-runtime.js composes the engine from, loaded from the installed senpi without starting it; `anthropic-subscription` mirrors the anthropic catalog as its extension does; plus `<agentDir>/models.json` providers and, on a dry run, the custom providers the provider stage would add. A provider that lists models only at runtime (`refreshModels`) is reported, not trusted. Entries become the native shape: `model`, `models` (a `fallback_models` chain folded behind `model`), `reasoning` (from `reasoning` / `reasoningEffort` / `variant`) and `temperature`; an entry whose every model failed is dropped whole. Agents are carried only for names in senpi-task's `BUILTIN_AGENTS` (pinned by a test), because any other name would become a new promptless agent; `deep` is carried as `deep-low` as the loader canonicalizes it.
+
+`bin/lib/setup-model-choices-import.js` (new) is the stage, the same detect -> preview -> consent -> write shape and `confirm` as the others, run last in `runSetup`. Targets: `<agentDir>/settings.jsonc`, else `settings.json` (settings-manager.js `resolveSettingsSource`), `defaultProvider` + `defaultModel`; the user omo config (`omo.jsonc`, else `omo.json`, else a new `omo.jsonc`, loader/paths.ts) `[native]` block, or `[senpi]` when only that legacy spelling exists: `model_profile`, `categories.<name>`, `agents.<name>`. A key present in the block or the shared base is `skipped-existing`, or `already-carried` when equal. `bin/lib/jsonc-edit.js` (new) inserts each member into the file's own text, so comments and order survive, and refuses (the stage reports, writes nothing to that file) whenever the edited text does not parse back to exactly the intended document. Each edited file gets a `.bak-<timestamp>` copy and an atomic write through a symlink.
+
+### Why
+
+The engine starts an interactive session on the saved settings default (model-resolver.js `findInitialModel` step 3; recommended-models leaves a `settings` provenance alone), while the omo-senpi model-profile component applies Recommended to every fresh headless or desktop session unless `model_profile` is set, and a `provider/model` value there is a pin. Writing only one of the two left the other surface on Recommended.
+
+### Expected merge conflict zones
+
+`bin/lib/setup-import.js` `runSetup` (one added stage call), `bin/lib/setup-opencode-assets.js` (the reader split).
+
 ## 2026-09-24 - omo setup carries OpenCode custom providers into models.json and auth.json (#8836)
 
 ### What changed
