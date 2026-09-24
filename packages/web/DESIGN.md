@@ -381,7 +381,10 @@ Roboto Mono family, Regular 400 followed by Bold 700.
   24 hours on GitHub failure; otherwise `GitHub` without an invented count.
   Download states: fetched independently of stars (an npm outage never freezes
   stars), fresh for 1 hour, last known good for at most 24 hours, otherwise the
-  downloads item is omitted. Any degraded figure makes the response `no-store`;
+  downloads item is omitted. Each refresh makes two attempts, and every good
+  figure is also kept in the colo-shared Workers Cache API (24 h), so a freshly
+  started isolate (the one a crawler usually hits) reuses it instead of dropping
+  the figure. Any degraded figure makes the response `no-store`;
   otherwise `s-maxage` is the smallest remaining freshness.
 - Both social routes render on demand, not as build snapshots. Fonts and artwork
   are bundled into the renderer; no runtime font CDN, Figma URL, or npm request.
