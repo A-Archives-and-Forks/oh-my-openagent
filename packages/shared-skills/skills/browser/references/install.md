@@ -13,7 +13,7 @@ Three pieces. The onboarding script prepares all three; a human finishes exactly
 | | |
 |---|---|
 | Operating systems | macOS (Apple Silicon and Intel), Linux (x64, ARM64), Windows x64 |
-| Browsers | Chrome, Microsoft Edge, Brave, Chromium, Arc, Dia, Vivaldi, Opera, Comet, Aside, Naver Whale — whichever the doctor lists under `candidates` |
+| Browsers | Chrome, Microsoft Edge, Brave, Chromium, Arc, Dia, Vivaldi, Opera, Comet, Naver Whale — whichever the doctor lists under `candidates` |
 
 ## Which browser
 
