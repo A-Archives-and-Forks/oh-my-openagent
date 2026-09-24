@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**Setting up the browser extension no longer installs it into a Chrome you do not use.** ([#8784](https://github.com/code-yeongyu/oh-my-openagent/issues/8784)) The `browser` skill used to register the BrowserSkill extension into every Chromium browser that had ever left a profile on disk, and asked you to restart Chrome first. It now picks the one browser you actually work in - your default browser when you are using it, otherwise the only browser you are using - and installs only there, naming that browser in the one step you have to do. Arc, Dia, Vivaldi, Opera, Comet and Naver Whale are recognised alongside Chrome, Edge, Brave and Chromium. When it cannot tell (your default is Safari or Firefox, or you use several browsers), it installs nothing and the agent asks you which one to use, then remembers the answer.
+
 ## [5.0.0-beta.89] - 2026-09-24
 
 ### Changed
