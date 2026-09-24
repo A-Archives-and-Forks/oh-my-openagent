@@ -61,7 +61,7 @@ describe("offerNativeSetup", () => {
     const fake = recorder(true)
 
     // when
-    const result = await offerNativeSetup({ verified: false }, fake.dependencies)
+    const result = await offerNativeSetup({ verified: false, omoBinPath: VERIFIED_BIN }, fake.dependencies)
 
     // then
     expect(fake.questions).toEqual([])
