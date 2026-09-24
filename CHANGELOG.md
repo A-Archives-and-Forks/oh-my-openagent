@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.89] - 2026-09-24
+
 ### Changed
 
 **`ulw-plan` now plans for the person the result touches, and the plan reviewer checks that it gets them there.** ([#8773](https://github.com/code-yeongyu/oh-my-openagent/issues/8773)) Before asking you anything, the planner names who the change affects - a customer, another programmer, a program or agent consuming the output - how they use it today, the state in which nothing snags, regresses or degrades for them, and every gap from today, each with its reason. Forks are resolved against that state first, so you are asked only the decisions that are genuinely yours; "MVP" or "phase 1" cuts are never invented, and when the ideal state is larger than what you literally asked for the brief says so in one line and plans it anyway. The plan file carries the user and the ideal-state rows under `## Scope`, a `## Success criteria` table that maps every row to the task that delivers it and the QA scenario that proves it (that section used to be empty), and a final `Ideal-state fidelity` gate whose shortfall becomes new tasks, never a note. The plan reviewer no longer approves at "80% clear": it checks who the end user is, what changes for them, which problem is solved, that every ideal-state row is delivered and proven, and that the approach can actually reach that state - a wrong approach for the stated user is a blocker, while a different approach that would also work is not its concern. The same rules ship in the OpenCode and Codex editions of the skill.
