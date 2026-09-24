@@ -1,3 +1,16 @@
+## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
+
+`skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
+state, destination-derived formats, the requester's report-format memory (read from
+`system/human/report-style.md` / `reference/human-report-style.md`, appended after delivery when the run
+qualifies), and an at-most-three-question interview asked with `waitForAnswer: false`, recorded in
+`brief.md` with `answered_by` and opened as `outcome.json`. Phase 6 extracts `design-spec.md` from a
+pointed-at document, runs static gates, layout gates, visual QA and proofread in order with each status
+in the manifest, obeys `repair decide`, and prints the closing briefing with `outcome briefing`.
+`plugin/scripts/native-skill-sources.mjs` + `sync-skills.mjs` overlay the shared `scripts/` and the two
+references into the shipped skill (`sharedAssets`); `src/skills-sync.test.ts` asserts byte equality.
+omo#8611.
+
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the
