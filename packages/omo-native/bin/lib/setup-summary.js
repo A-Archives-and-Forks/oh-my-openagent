@@ -5,6 +5,7 @@
  */
 
 import { isAbsolute, join, relative } from "node:path"
+import { coverageSummaryParts } from "./category-coverage.js"
 import { formatModelTemplate, MODEL_GUIDE_LINE } from "./setup-models.js"
 import { providerKeySource } from "./setup-providers-import.js"
 
@@ -143,7 +144,8 @@ function notes(context) {
 
 /**
  * `context`: `{ home, agentDir, inventory, credentials, assets, providers, modelChoices }`, each
- * stage's plan as its `plan*` function returns it.
+ * stage's plan as its `plan*` function returns it, plus `categories`: the task-category coverage of
+ * the post-import plan (`setupCoverage`), undefined when it could not be computed.
  */
 export function formatSetupSummary(context) {
   // A class with nothing found renders no row.
@@ -154,10 +156,13 @@ export function formatSetupSummary(context) {
     ...row("providers", providerParts(context)),
     ...row("model choices", modelChoiceParts(context)),
   ]
+  // Coverage is not something found, so it never turns an empty summary into a non-empty one.
+  const coverage = context.categories === undefined ? [] : row("categories", coverageSummaryParts(context.categories))
   const sources = sourceNames(context)
   const lines = [sources.length > 0 ? `Found your ${sources.join(" and ")} setup` : "No OpenCode setup found"]
   if (rows.length > 0) lines.push(...rows)
   else lines.push("  nothing omo can import")
+  lines.push(...coverage)
   const noted = notes(context)
   if (noted.length > 0) lines.push("Notes:", ...noted.map((notice) => `  ${notice}`))
   lines.push(MODEL_GUIDE_LINE)

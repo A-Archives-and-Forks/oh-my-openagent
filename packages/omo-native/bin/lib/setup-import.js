@@ -8,6 +8,7 @@ import { homedir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { canonicalAgentDir } from "./agent-dir.js"
+import { setupCoverage } from "./category-coverage.js"
 import { detectHarnesses } from "./setup-detect.js"
 import { applyCredentials, credentialCounts, credentialPlanLines, credentialQuestion, opencodeOauthProviders, planCredentials } from "./setup-credentials.js"
 import { applyAssets, assetCounts, assetPlanLines, assetQuestion, planAssets } from "./setup-assets-import.js"
@@ -93,7 +94,8 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   const inventory = await detectHarnesses(runtime)
   const plans = await planAll(runtime, agentDir)
   if (dryRun) process.stdout.write("DRY RUN: no files will be written\n")
-  process.stdout.write(formatSetupSummary({ home, agentDir, inventory, ...plans }))
+  const categories = await setupCoverage({ agentDir, home, env, plans, loadRuntime: options.loadCoverageRuntime })
+  process.stdout.write(formatSetupSummary({ home, agentDir, inventory, ...plans, categories }))
   process.stdout.write(`${TELEMETRY_NOTICE}\n`)
   if (dryRun) {
     write(stageList(plans).filter((stage) => stage.present).flatMap((stage) => stage.lines(stage.plan)))

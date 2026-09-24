@@ -1,3 +1,16 @@
+## 2026-09-24 - omo doctor and omo setup report task-category coverage (#8858)
+
+### What changed
+
+- `bin/lib/category-coverage.js` (new): `engineAvailableModels` builds the pinned engine's `ModelRuntime` the way the engine's `auth-check --no-refresh` does (`ReadOnlyAuthStorage`, `InMemoryCodingAgentModelsStore`, `allowModelNetwork: false`) and returns `getAvailable()`; `anthropic-subscription` (an extension provider, not in the catalog) is registered on that runtime from the engine's own builtin extension, so the extension's availability check decides it as in a session (stored accounts, `CLAUDE_CODE_OAUTH_TOKEN*` env tokens, an opted-in ambient login; settings read from the inspected agent dir). A setup plan passes its post-import `auth.json` entries (in-memory `AuthStorage.inMemory`) and `models.json` document (a 0600 file in a temp dir removed right after). `categoryCoverage` classifies through the bundled runtime; `doctorCoverageLines` / `setupCoverage` are fail-open (no lines / `undefined`) and import the runtime before the engine so a payload without it costs nothing.
+- `category-coverage-entry.ts` (new): the bundled runtime. It loads omo.json the way the extension does (`loadOmoConfig`, harness `senpi`), counts setup's pending category pins as user-configured, and calls `resolveCategoryCoverage`.
+- `script/build-omo-native.ts`: bundles that entry into `plugin/runtime/category-coverage/index.js` (node target, ESM, node builtins only) and requires it in the payload completeness check (`NATIVE_REQUIRED_ARTIFACTS`; the omo-senpi install list is unchanged).
+- `bin/lib/launcher.js` computes the doctor lines (not for `--reap`) and passes them to `runDoctor`, which stays synchronous and prints them after the daemon line. `bin/lib/setup-import.js` computes the plan's coverage before the summary; `bin/lib/setup-summary.js` renders it as a `categories` row after the found rows.
+
+### Tests
+
+`test/category-coverage.test.ts` (new): the real engine and the real entry over a zai-only and an anthropic-only agent dir (1 and 7 usable, agent dir untouched), an env-token-only and a non-login `anthropic-subscription` entry, `runDoctor` printing the launcher's lines and `runSetup --dry-run` carrying the `categories` row, a setup plan whose imported key, custom provider and category pin all count, fail-open for doctor and setup (no `categories` row), and the line/row shape. `test/payload.test.ts` requires the new artifact.
+
 ## 2026-09-24 - omo setup prints one migration summary and asks one consent for the whole plan (#8851)
 
 ### What changed
