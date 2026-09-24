@@ -1,6 +1,8 @@
 import { lstatSync, readFileSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { delimiter, dirname, isAbsolute, join, win32 } from "node:path"
+import { parseJsonc } from "./jsonc.js"
+import { opencodeConfigSources } from "./setup-opencode-assets.js"
 
 // Migration leftovers from the OpenCode edition, reported and never touched: another `omo` ahead of
 // omo-ai's on PATH, the legacy package still installed globally, and the OpenCode plugin still
@@ -18,7 +20,8 @@ const CODEX_LIGHT_CACHE_VERSION = /[\\/]plugins[\\/]cache[\\/]sisyphuslabs[\\/]o
 const WINDOWS_BIN_SUFFIXES = ["", ".cmd", ".ps1", ".exe"]
 const OWNER_WALK_UP_LIMIT = 6
 const SHIM_READ_LIMIT = 8192
-const OPENCODE_CONFIG_FILES = ["opencode.json", "opencode.jsonc", "tui.json", "tui.jsonc"]
+// OpenCode's TUI plugins live beside its server config, in every user-scope config directory.
+const TUI_CONFIG_FILES = ["tui.json", "tui.jsonc"]
 
 /** Every location the checks read, derived only from the injected env, platform and home. */
 export function resolveMigrationEnvironment({ env, platform, homeDir }) {
@@ -37,10 +40,12 @@ export function resolveMigrationEnvironment({ env, platform, homeDir }) {
   // dir on PATH also names a candidate prefix.
   for (const directory of pathDirectories) npmPrefixes.push(isWindows ? directory : dirname(directory))
   const bunRoot = env.BUN_INSTALL ? env.BUN_INSTALL : join(homeDir, ".bun")
-  const opencodeConfigDir = env.OPENCODE_CONFIG_DIR
-    ? env.OPENCODE_CONFIG_DIR
-    : join(env.XDG_CONFIG_HOME ? env.XDG_CONFIG_HOME : join(homeDir, ".config"), "opencode")
-  return { isWindows, pathDirectories, npmPrefixes, bunRoot, opencodeConfigDir }
+  const opencode = opencodeConfigSources(homeDir, env)
+  const opencodeConfigFiles = [
+    ...opencode.files,
+    ...opencode.directories.flatMap((directory) => TUI_CONFIG_FILES.map((name) => join(directory, name))),
+  ]
+  return { isWindows, pathDirectories, npmPrefixes, bunRoot, opencodeConfigFiles }
 }
 
 function npmrcPrefix(homeDir) {
@@ -188,15 +193,14 @@ export function findLegacyPackages(environment) {
 }
 
 /** Which legacy plugin each OpenCode config file still registers, in string or tuple form. */
-export function findOpenCodeRegistrations(configDir) {
+export function findOpenCodeRegistrations(configFiles) {
   const registrations = []
-  for (const file of OPENCODE_CONFIG_FILES) {
-    const path = join(configDir, file)
+  for (const path of configFiles) {
     const text = readWholeFile(path)
     if (text === undefined) continue
     let config
     try {
-      config = JSON.parse(stripJsonc(text))
+      config = parseJsonc(text)
     } catch {
       continue // OpenCode reports its own unreadable config; guessing at it here would mislead.
     }
@@ -212,32 +216,6 @@ function isPluginEntryFor(entry, name) {
   const spec = Array.isArray(entry) ? entry[0] : entry
   if (typeof spec !== "string") return false
   return spec === name || spec.startsWith(`${name}@`) || spec.startsWith(`${name}/`)
-}
-
-/** Drops comments and trailing commas outside string literals, which is all JSONC adds to JSON. */
-export function stripJsonc(text) {
-  let output = ""
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (char === "\"") {
-      const end = endOfString(text, index)
-      output += text.slice(index, end)
-      index = end - 1
-    } else if (char === "/" && text[index + 1] === "/") {
-      while (index < text.length && text[index] !== "\n") index += 1
-      output += "\n"
-    } else if (char === "/" && text[index + 1] === "*") {
-      const end = text.indexOf("*/", index + 2)
-      index = end < 0 ? text.length : end + 1
-    } else output += char
-  }
-  return output.replace(/,(\s*[}\]])/g, "$1")
-}
-
-function endOfString(text, start) {
-  let index = start + 1
-  while (index < text.length && text[index] !== "\"") index += text[index] === "\\" ? 2 : 1
-  return index + 1
 }
 
 function ownerLabel(owner) {
@@ -282,7 +260,7 @@ export function migrationReport(options, restoreCommand) {
     shadowing: shadowingOmoBins(bins),
     nativeDirectory: bins.find((entry) => entry.kind === "native")?.directory ?? null,
     legacyPackages: findLegacyPackages(environment),
-    registrations: findOpenCodeRegistrations(environment.opencodeConfigDir),
+    registrations: findOpenCodeRegistrations(environment.opencodeConfigFiles),
     restoreCommand,
   })
 }

@@ -207,15 +207,17 @@ describe("omo doctor migration checks", () => {
       expect(lines[0]).toContain(`${join(configDir, "opencode.jsonc")}, ${join(configDir, "tui.json")}`)
     })
 
-    test("#then OPENCODE_CONFIG_DIR is the directory read", () => {
+    test("#then OPENCODE_CONFIG_DIR is read on top of the global config dir, as OpenCode layers it", () => {
       const sandbox = createSandbox()
+      const globalConfig = join(sandbox.home, ".config", "opencode", "opencode.json")
       const configDir = join(sandbox.root, "custom-opencode")
-      writeFile(join(configDir, "opencode.json"), JSON.stringify({ plugin: ["oh-my-opencode"] }))
+      writeFile(globalConfig, JSON.stringify({ plugin: ["oh-my-opencode"] }))
+      writeFile(join(configDir, "tui.json"), JSON.stringify({ plugin: ["oh-my-opencode/tui"] }))
 
       const lines = report(sandbox, [], { OPENCODE_CONFIG_DIR: configDir })
 
       expect(lines).toHaveLength(1)
-      expect(lines[0]).toContain(join(configDir, "opencode.json"))
+      expect(lines[0]).toContain(`${globalConfig}, ${join(configDir, "tui.json")}`)
     })
   })
 
