@@ -137,6 +137,23 @@ describe("createKibitzerSidecarChildStarter", () => {
     loadPersona: () => "persona text",
   }
 
+  test("#given the refusals the starter itself throws #when classified #then only the category refusals are configuration, and a missing registry snapshot stays transient although it names the category", async () => {
+    const input = { sessionId: "parent-1", generation: 1, prompt: "<kibitzer-seed/>", tools: [nudgeTool()], maxItems: 2 }
+    const failingRunner = () => ({ start: async (): Promise<ChildHandle> => { throw new Error("spawn failed") } })
+    const refusal = (options: Partial<Parameters<typeof createKibitzerSidecarChildStarter>[0]>) =>
+      createKibitzerSidecarChildStarter({ ...base, createRunner: failingRunner, ...options })(input).catch((error: unknown) => error)
+
+    const dead = await refusal({ loadConfig: () => ({}), modelRegistry: () => ({ getAvailable: () => [], find: () => undefined }) as unknown as ChildModelRegistry })
+    const noSnapshot = await refusal({ modelRegistry: () => undefined })
+    const transient = [noSnapshot, await refusal({ loadPersona: () => { throw new Error("ENOENT") } }), await refusal({})]
+
+    expect(kibitzerConfigurationFailure(dead)).toMatchObject({ category: "quick", cause: "category_unavailable" })
+    // The starter attaches the category to every model refusal; the snapshot one must still retry as a failure.
+    expect(noSnapshot).toMatchObject({ code: "registry_snapshot_unavailable", category: "quick" })
+    expect(transient.map((error) => (error as KibitzerSidecarStartError).code)).toEqual(["registry_snapshot_unavailable", "persona_unavailable", "session_create_failed"])
+    for (const error of transient) expect(kibitzerConfigurationFailure(error)).toBeUndefined()
+  })
+
   test("#given a runner seam #when the starter runs #then one child starts from the persona and the seed and the handle is returned", async () => {
     const specs: ChildSpec[] = []
     const handle = { task_id: "t", sessionId: "child-1" } as unknown as ChildHandle
