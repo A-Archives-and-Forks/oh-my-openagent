@@ -1,3 +1,11 @@
+## skills: the onboard re-run instruction names the brand command
+
+`skills/onboarding/SKILL.md` still told the user to bring the tour back with `senpi --onboard`.
+On OmO Native that bin is not on PATH (the `--onboard` flag is registered by the omo-senpi
+onboarding component and reached only through the branded launcher). The hint now uses
+`omo --onboard` on OmO Native and `senpi --onboard` on a plain senpi install, matching the
+`--list-tips` brand-command rule. Lane 2 (Migration help) is unchanged.
+
 ## skills: the list-tips instruction names the command the running product actually ships
 
 `skills/give-me-tips/SKILL.md`, `skills/onboarding/SKILL.md`, and `skills/AGENTS.md` told the

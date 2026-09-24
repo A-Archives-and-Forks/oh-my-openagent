@@ -74,8 +74,9 @@ The baked catalog:
 - **Interactive UI primitives**: real pickers, confirms, inputs, notifications, editors, custom
   views, and widgets let components ask structured questions instead of burying choices in prose.
 - **Re-running this tour**: onboarding auto-starts once, ever. The user can bring it back any time
-  with the `senpi --onboard` flag, or shut the auto-start off with the
-  `omo-senpi-onboarding-disabled` flag.
+  with the `--onboard` flag of the command this product is installed as - `omo --onboard` on OmO
+  Native (omo-ai installs, where `senpi` is not on PATH) or `senpi --onboard` on a plain senpi
+  install - or shut the auto-start off with the `omo-senpi-onboarding-disabled` flag.
 - **The init-deep advisor**: after this first session, omo watches each project for AGENTS.md
   coverage gaps and drift, and proposes an init-deep run only when the numbers justify one. On
   this first session, you carry that proposal yourself in lane 6.
@@ -232,7 +233,8 @@ not proposing, do not hint that a check ran. Close the conversation warmly inste
 If all gates pass, ask in the user's language: "want me to set up AGENTS.md for this project?"
 This is opt-in. On yes, read the `init-deep` skill at its SKILL.md path and follow it. On no,
 record the decline through the memory tools and finish the conversation gracefully: a short
-send-off in their language, an invitation to come back with `senpi --onboard`, and nothing more.
+send-off in their language, an invitation to come back with `omo --onboard` on OmO Native or
+`senpi --onboard` on a plain senpi install, and nothing more.
 
 After init-deep finishes, tell the user in their language that init-deep ran through mass-ulw's
 DAG orchestration — the work was spread across parallel child agents in dependency-ordered
