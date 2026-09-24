@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setSystemTime, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url"
 import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/model-config.js"
 import { composeModelProvider } from "../../../node_modules/@code-yeongyu/senpi/dist/core/provider-composer.js"
 import { resolveConfigValue } from "../../../node_modules/@code-yeongyu/senpi/dist/core/resolve-config-value.js"
+import { readAuthStore, writeAuthStore } from "../bin/lib/auth-store.js"
 import { teardownRoots } from "./teardown.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
@@ -243,6 +244,30 @@ describe("omo setup opencode custom provider import", () => {
         expect(["models.json", "auth.json"].map((name) => readFileSync(join(item.agentDir, name), "utf8"))).toEqual(bytes)
         expect(readdirSync(item.agentDir).filter((name) => name.includes(".bak-"))).toEqual(backups)
         expect(second.stdout).toContain("providers-skipped-existing: acme, fresh")
+      })
+    })
+  })
+
+  describe("#given the credential and provider stages both rewrite auth.json in the same millisecond", () => {
+    describe("#when the second stage backs it up", () => {
+      test("#then the backup still holds the bytes from before setup", () => {
+        const item = fixture()
+        const path = join(item.agentDir, "auth.json")
+        const original = JSON.stringify({ mine: { type: "api_key", key: "mine" } })
+        write(path, original)
+
+        try {
+          setSystemTime(new Date("2026-09-24T12:00:00.000Z"))
+          writeAuthStore(path, readAuthStore(path), [{ provider: "openai", key: "sk-o" }])
+          writeAuthStore(path, readAuthStore(path), [{ provider: "acme", key: "k" }])
+        } finally {
+          setSystemTime()
+        }
+        const backups = readdirSync(item.agentDir).filter((name) => name.startsWith("auth.json.bak-"))
+
+        expect(backups).toHaveLength(1)
+        expect(readFileSync(join(item.agentDir, backups[0]), "utf8")).toBe(original)
+        expect(Object.keys(readJson(path)).sort()).toEqual(["acme", "mine", "openai"])
       })
     })
   })
