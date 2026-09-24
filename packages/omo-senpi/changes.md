@@ -46,6 +46,26 @@ carry the category and its providers; only they classify as configuration), `ind
 is registered). Live proof: `scripts/qa/kibitzer-sidecar-e2e.mjs --scenario category-unavailable` (new)
 drives the real senpi binary with only `omo-mock` connected and the recall category on its builtin chain:
 3 refusals, 1 unavailable notice naming the 8 providers, 0 gate entries, 0 child turns, lease released. omo#8800.
+
+## model-profile: Geeky · Normal runs gpt-5.6-sol medium (#8807)
+
+`src/components/model-profile/builtin-profiles.ts`: `geeky-normal` is one rung, `gpt-5.6-sol` at `medium` on `chatgpt-subscription`, `openai`, `github-copilot`, `opencode` (the shared `GPT_PROVIDERS` ranking), replacing `gpt-6-sol-fast` then `gpt-6-sol`. There is no GPT-6 fallback rung, so a registry serving only GPT-6 Sol reports the lane unavailable.
+
+Tests: `builtin-profiles.test.ts` pins the new chain; `resolve.test.ts` covers the Copilot-only, subscription-over-Copilot, API-over-unlisted-provider and GPT-6-only (unavailable) cases; `index.test.ts` applies `github-copilot/gpt-5.6-sol` medium. `scripts/qa/model-profile-e2e-scenarios.mjs`: the geeky-normal scenarios serve `gpt-5.6-sol` (`geeky-normal-api-sol`, `geeky-normal-copilot-sol`, `geeky-normal-sol`), and `geeky-normal-gpt6-only-unavailable` proves the lane does not fall back to GPT-6.
+
+## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
+
+`skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
+state, destination-derived formats, the requester's report-format memory (read from
+`system/human/report-style.md` / `reference/human-report-style.md`, appended after delivery when the run
+qualifies), and an at-most-three-question interview asked with `waitForAnswer: false`, recorded in
+`brief.md` with `answered_by` and opened as `outcome.json`. Phase 6 extracts `design-spec.md` from a
+pointed-at document, runs static gates, layout gates, visual QA and proofread in order with each status
+in the manifest, obeys `repair decide`, and prints the closing briefing with `outcome briefing`.
+`plugin/scripts/native-skill-sources.mjs` + `sync-skills.mjs` overlay the shared `scripts/` and the two
+references into the shipped skill (`sharedAssets`); `src/skills-sync.test.ts` asserts byte equality.
+omo#8611.
+
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the

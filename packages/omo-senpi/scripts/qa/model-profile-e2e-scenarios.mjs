@@ -8,17 +8,17 @@ export const PROFILE_TYPES = [APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE]
 export const KNOWN_PROFILES = "daily-heavy, daily-normal, geeky-heavy, geeky-normal, recommended"
 
 export const SCENARIOS = {
-  "geeky-normal-api-fast": {
+  "geeky-normal-api-sol": {
     omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol-fast"],
+    mockModels: ["mock-1", "gpt-5.6-sol"],
     registerProviders: ["openai"],
-    expect: { model: "gpt-6-sol-fast", provider: "openai", notice: APPLIED_TYPE, thinking: "medium" },
+    expect: { model: "gpt-5.6-sol", provider: "openai", notice: APPLIED_TYPE, thinking: "medium" },
   },
   "geeky-normal-copilot-sol": {
     omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol"],
+    mockModels: ["mock-1", "gpt-5.6-sol"],
     registerProviders: ["github-copilot"],
-    expect: { model: "gpt-6-sol", provider: "github-copilot", notice: APPLIED_TYPE, thinking: "medium" },
+    expect: { model: "gpt-5.6-sol", provider: "github-copilot", notice: APPLIED_TYPE, thinking: "medium" },
   },
   "geeky-heavy-subscription-first": {
     omoConfig: { model_profile: "geeky-heavy" },
@@ -38,11 +38,11 @@ export const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "claude-fable-5-1", notice: APPLIED_TYPE, thinking: "xhigh" },
   },
-  "geeky-normal-sol-fast": {
+  "geeky-normal-sol": {
     omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol-fast"],
+    mockModels: ["mock-1", "gpt-5.6-sol"],
     cliModel: undefined,
-    expect: { model: "gpt-6-sol-fast", notice: APPLIED_TYPE, thinking: "medium" },
+    expect: { model: "gpt-5.6-sol", notice: APPLIED_TYPE, thinking: "medium" },
   },
   "geeky-heavy-astra": {
     omoConfig: { model_profile: "geeky-heavy" },
@@ -62,11 +62,11 @@ export const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
   },
-  "geeky-normal-nonfast-sol-omo-mock": {
+  "geeky-normal-gpt6-only-unavailable": {
     omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol"],
+    mockModels: ["mock-1", "gpt-6-sol-fast", "gpt-6-sol"],
     cliModel: undefined,
-    expect: { model: "gpt-6-sol", notice: APPLIED_TYPE, thinking: "medium" },
+    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
   },
   unset: {
     omoConfig: {},

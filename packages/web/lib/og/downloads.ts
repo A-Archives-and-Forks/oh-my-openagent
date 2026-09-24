@@ -2,6 +2,7 @@ import { fetchAllTimeDownloads } from "../npm-downloads"
 import { createOgCountSource } from "./live-count"
 
 const downloads = createOgCountSource({
+  key: "npm-downloads",
   label: "npm downloads",
   freshMs: 3_600_000,
   maxStaleMs: 86_400_000,
