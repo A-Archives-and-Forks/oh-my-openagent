@@ -158,7 +158,7 @@ function convertServer(name, entry, notices) {
     return undefined
   }
   if (rejectedByEngine(config)) {
-    notices.push(`NOTICE opencode: mcp server ${name} uses command substitution, which omo refuses to run; not imported`)
+    notices.push(`NOTICE opencode: mcp server ${name} uses command substitution ($(...) or a leading !), which omo refuses to run; not imported - resolve it to a fixed value or a \${NAME} environment reference and add the server to mcp.json by hand`)
     return undefined
   }
   if (unconvertedPlaceholder(config)) {
