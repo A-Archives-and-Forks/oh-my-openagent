@@ -100,7 +100,9 @@ Global OpenCode MCP servers and global OpenCode skills are not yours to move by 
 imports them: MCP servers from `~/.config/opencode/opencode.json[c]` into the engine's global
 `~/.omo/agent/mcp.json`, and skills from `~/.config/opencode/skills/` into `~/.omo/agent/skills/`,
 converted to the shapes omo reads, consent-gated, and never overwriting a name that already exists.
-Run `omo setup --dry-run` to show the user exactly what would land, then `omo setup` to apply it.
+Run `omo setup --dry-run` to show the user exactly what would land. Once they accept, run
+`omo setup --yes`: your shell is not a terminal, so plain `omo setup` stops at its consent prompt
+and imports nothing.
 Copying a global server into a project `.mcp.json` yourself is a bug: it disappears the moment the
 user opens any other directory.
 
