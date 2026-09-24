@@ -73,7 +73,8 @@ function writeMcp(path, target, added) {
 function writeAssets(result, paths) {
   if (result.servers.added.length > 0) writeMcp(paths.mcp, result.target, result.servers.added)
   for (const skill of result.skills.added) {
-    // force: false is the no-overwrite guarantee itself - cpSync leaves an existing file alone.
+    // classifyAssets already skipped every name that exists; force: false only keeps a directory
+    // created between that check and this copy from being overwritten file by file.
     cpSync(skill.source, join(paths.skills, skill.name), { recursive: true, force: false })
   }
 }
