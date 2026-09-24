@@ -1,3 +1,13 @@
+## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
+
+`omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
+
+The launcher now runs that command. `--dry-run` / `--print` keep the print-only answer. A successful run streams the manager output and prints `omo <before> -> <after> (engine: senpi ...)`. A failed run exits non-zero with the same command to retry by hand. Bun-global installs spawn `bun add -g omo-ai@beta` with `BUN_INSTALL` overlaid from the install prefix; npm stays `npm i -g omo-ai@beta`. The engine pin is untouched: the launcher never updates `@code-yeongyu/senpi` separately.
+
+Verification: `bun test packages/omo-native/test/self-update.test.ts packages/omo-native/test/launcher.test.ts` 54/0; `node --check` on the three JS files. Sandbox `BUN_INSTALL`: overlay the new updater onto `omo-ai@5.0.0-0.beta.88`, `omo update --dry-run` printed only and left 88, `omo update` streamed bun add and reported `omo 5.0.0-0.beta.88 -> 5.0.0-0.beta.89 (engine: senpi 2026.9.24)`.
+
+||||||| e1693d8b4
+
 ## 2026-09-24 - native install offers to run `omo setup`; the advertised installer tag follows the plugin's channel (#8828)
 
 `install --platform=native` used to end with "OmO Native installed. Run omo setup to finish onboarding." even though it had just verified that `omo` on PATH is omo-ai. In the interactive installer (`packages/omo-opencode/src/cli/tui-installer.ts`) a verified install is now followed by `Run omo setup now to carry your OpenCode credentials, MCP servers and skills over?` (clack confirm, default Yes); yes runs `<verified path> setup` with the terminal inherited, so setup's own consent prompt works. The path is the one `verifyOmoCommand` probed (`OmoCommandVerification.binPath` -> `NativeInstallOutcome.omoBinPath`), never a fresh `omo` lookup. The decision lives in `cli/install-native/offer-native-setup.ts` (`offerNativeSetup`, injected `confirm` / `runSetup`); a setup that exits non-zero or cannot be spawned leaves a warning pointing back at `omo setup`. An unverified install is never offered and keeps the PATH fix #8793 prints. `--no-tui` (`cli-installer.ts`, unchanged) keeps printing the next step.
