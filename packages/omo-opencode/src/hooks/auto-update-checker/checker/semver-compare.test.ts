@@ -19,6 +19,13 @@ describe("compareSemverVersions", () => {
     expect(compareSemverVersions("5.0.0-beta.89", "5.0.0-beta.85")).toBe(1)
   })
 
+  test("#given prerelease numbers of different digit counts #when compared #then they order by value, not as strings", () => {
+    // beta.9 -> beta.10 is a real channel step; a string compare would call it a downgrade
+    expect(compareSemverVersions("5.0.0-beta.9", "5.0.0-beta.10")).toBe(-1)
+    expect(compareSemverVersions("5.0.0-0.beta.9", "5.0.0-0.beta.10")).toBe(-1)
+    expect(compareSemverVersions("5.0.0-beta.100", "5.0.0-beta.99")).toBe(1)
+  })
+
   test("#given a prerelease vs its release #when compared #then the prerelease is older", () => {
     expect(compareSemverVersions("5.0.0-beta.89", "5.0.0")).toBe(-1)
     expect(compareSemverVersions("5.0.0", "5.0.0-beta.89")).toBe(1)
