@@ -15,6 +15,8 @@ const FLASH = "deepseek/deepseek-flash"
 const LUNA = "openai/gpt-5.6-luna-fast"
 const SOL_FAST = "chatgpt-subscription/gpt-6-sol-fast"
 const SOL_COPILOT = "github-copilot/gpt-6-sol"
+const SOL_56 = "chatgpt-subscription/gpt-5.6-sol"
+const SOL_56_COPILOT = "github-copilot/gpt-5.6-sol"
 const ASTRA = "chatgpt-subscription/gpt-6-astra"
 
 const DAILY_NORMAL = {
@@ -195,41 +197,50 @@ describe("builtin chain routing", () => {
     }
   })
 
-  it("resolves geeky-normal to gpt-6-sol medium when only Copilot Sol is present", () => {
-    const result = resolveModelProfile({ active: "geeky-normal", availableModels: [SOL_COPILOT] })
+  it("resolves geeky-normal to gpt-5.6-sol medium when only Copilot serves it", () => {
+    const result = resolveModelProfile({ active: "geeky-normal", availableModels: [SOL_56_COPILOT] })
 
     expect(result).toMatchObject({
       kind: "resolved",
       provider: "github-copilot",
-      modelId: "gpt-6-sol",
+      modelId: "gpt-5.6-sol",
       reasoning: "medium",
     })
   })
 
-  it("prefers chatgpt-subscription sol-fast over Copilot sol for geeky-normal", () => {
+  it("prefers the chatgpt-subscription lane over Copilot for geeky-normal gpt-5.6-sol", () => {
     const result = resolveModelProfile({
       active: "geeky-normal",
-      availableModels: [SOL_COPILOT, SOL_FAST],
+      availableModels: [SOL_56_COPILOT, SOL_56],
     })
 
     expect(result).toMatchObject({
       kind: "resolved",
       provider: "chatgpt-subscription",
-      modelId: "gpt-6-sol-fast",
+      modelId: "gpt-5.6-sol",
       reasoning: "medium",
     })
   })
 
-  it("ranks the openai API lane ahead of an unlisted provider serving geeky-normal sol-fast", () => {
+  it("does not fall back to a GPT-6 model when geeky-normal's gpt-5.6-sol is missing", () => {
     const result = resolveModelProfile({
       active: "geeky-normal",
-      availableModels: ["office-gateway/gpt-6-sol-fast", "openai/gpt-6-sol-fast"],
+      availableModels: [SOL_COPILOT, SOL_FAST],
+    })
+
+    expect(result.kind).toBe("unavailable")
+  })
+
+  it("ranks the openai API lane ahead of an unlisted provider serving geeky-normal gpt-5.6-sol", () => {
+    const result = resolveModelProfile({
+      active: "geeky-normal",
+      availableModels: ["office-gateway/gpt-5.6-sol", "openai/gpt-5.6-sol"],
     })
 
     expect(result).toMatchObject({
       kind: "resolved",
       provider: "openai",
-      modelId: "gpt-6-sol-fast",
+      modelId: "gpt-5.6-sol",
       reasoning: "medium",
     })
   })

@@ -1,3 +1,9 @@
+## model-profile: Geeky · Normal runs gpt-5.6-sol medium (#8807)
+
+`src/components/model-profile/builtin-profiles.ts`: `geeky-normal` is one rung, `gpt-5.6-sol` at `medium` on `chatgpt-subscription`, `openai`, `github-copilot`, `opencode` (the shared `GPT_PROVIDERS` ranking), replacing `gpt-6-sol-fast` then `gpt-6-sol`. There is no GPT-6 fallback rung, so a registry serving only GPT-6 Sol reports the lane unavailable.
+
+Tests: `builtin-profiles.test.ts` pins the new chain; `resolve.test.ts` covers the Copilot-only, subscription-over-Copilot, API-over-unlisted-provider and GPT-6-only (unavailable) cases; `index.test.ts` applies `github-copilot/gpt-5.6-sol` medium. `scripts/qa/model-profile-e2e-scenarios.mjs`: the geeky-normal scenarios serve `gpt-5.6-sol` (`geeky-normal-api-sol`, `geeky-normal-copilot-sol`, `geeky-normal-sol`), and `geeky-normal-gpt6-only-unavailable` proves the lane does not fall back to GPT-6.
+
 ## ulw-research: deliverable lane interview, static gates, outcome manifest, and bounded repair
 
 `skills/ulw-research/SKILL.md` replaces the always-ask format-proposal gate with the deliverable lane and
