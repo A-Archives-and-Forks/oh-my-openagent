@@ -31,6 +31,21 @@ export function formatVersionChange(before, after) {
  * and `--print` keep the print-only answer; anything else streams the spawn, then reports the
  * installed versions. A failed manager run exits non-zero with the same command to retry by hand.
  * `run` defaults to `runChild` so tests inject a spawn without touching the child-process helper.
+ *
+ * @typedef {{ omo: string, engine: string }} InstalledVersion
+ * @typedef {{ status: number | null, signal: string | null }} ChildResult
+ * @typedef {{ stdio?: "inherit", windowsHide?: boolean, env?: NodeJS.ProcessEnv }} RunOptions
+ * @typedef {{
+ *   update?: { manager: string, command: string, argv: string[], env?: Record<string, string> },
+ *   log?: (line: string) => void,
+ *   error?: (line: string) => void,
+ *   run?: (command: string, args: string[], options?: RunOptions) => Promise<ChildResult>,
+ *   readInstalled?: () => InstalledVersion,
+ *   env?: NodeJS.ProcessEnv,
+ * }} SelfUpdateOptions
+ * @param {string[]} args
+ * @param {SelfUpdateOptions} [options]
+ * @returns {Promise<number>}
  */
 export async function runSelfUpdate(args, options = {}) {
   const update = options.update ?? updateTarget()
