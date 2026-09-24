@@ -11,6 +11,8 @@ export type OmoVersionProbe = (command: string, args: readonly string[]) => Prom
 
 export interface OmoCommandVerification {
   readonly ok: boolean
+  /** The omo-ai `omo` that was verified; set only when `ok`. */
+  readonly binPath?: string
   readonly notes: readonly string[]
   readonly warnings: readonly string[]
 }
@@ -59,7 +61,7 @@ export async function verifyOmoCommand(options: {
     }
   }
 
-  return { ok: true, notes: [`omo --version reports ${printed}`], warnings: [] }
+  return { ok: true, binPath: native.binPath, notes: [`omo --version reports ${printed}`], warnings: [] }
 }
 
 function shadowWarning(resolved: OmoBinEntry, native: OmoBinEntry, isWindows: boolean): string {
