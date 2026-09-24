@@ -1,3 +1,23 @@
+## 2026-09-24 - omo setup carries OpenCode custom providers into models.json and auth.json (#8836)
+
+### What changed
+
+`bin/lib/setup-opencode-providers.js` (new, read-only) reads the `provider` section of the OpenCode user config through the MCP reader's own resolution and merge (`setup-opencode-assets.js` now exports that reader as `readOpencodeSection(files, section, label, notices)`, plus `convertPlaceholders` / `unconvertedPlaceholder`; the MCP path calls it with `"mcp"` and keeps its notices). Each custom provider becomes the engine's `models.json` entry in the shape `model-config-schema.js` `ProviderConfigSchema` validates and `provider-composer.js` `modelFromJson` composes: `name`, `baseUrl`, `api` at provider level, `headers` from `options.headers`, and `models[]` with `id`, `name`, `contextWindow` / `maxTokens` from `limit.context` / `limit.output`, `reasoning`, `input` from `modalities.input` (text/image/video), a per-model `api` when a model names its own `provider.npm`, and `upstreamModelId` when an OpenCode model `id` differs from its key (the engine sends it as the request model id, `model-runtime.js`). The key follows OpenCode's own order (`provider.ts`): `options.apiKey`, else the opencode `auth.json` `api` entry, else the single env var `env` names. A key is escaped with the engine's literal escapes (`$$`, `$!`) and `{env:NAME}` becomes `${NAME}`, so the engine resolves to the bytes OpenCode would have sent.
+
+Two conversions exist because the SDKs disagree about the base URL. `@ai-sdk/anthropic` posts to `<baseURL>/messages` (default `https://api.anthropic.com/v1`) while the engine's Anthropic client appends `/v1/messages` (its builtin base is `https://api.anthropic.com`), so the trailing `/v1` is removed, and an Anthropic base without one is reported instead of guessed. A baseURL that is itself a `{env:...}` or `{file:...}` placeholder has no engine spelling and is also reported.
+
+`bin/lib/setup-providers-import.js` (new) is the stage itself, with the credential and asset stages' detect -> preview -> consent -> write shape and the same `confirm`. A provider id already in `models.json` is `providers-skipped-existing` and its key is not written either, because a key only rides with the provider it belongs to. A key id already in `auth.json` is kept. `models.json` is read comment-tolerant like the engine reads it, left untouched when `providers` is not an object, and written atomically at 0600 with a `.bak-` copy; every other top-level key (`disabledProviders`, ...) is preserved.
+
+`bin/lib/auth-store.js` (new) takes the auth.json read/escape/backup/write code verbatim out of `setup-import.js`, so both stages write keys the same way. `setup-import.js` plans the providers once up front, passes `customProviders` to `printModelReport`, which drops only the placeholder template when a real provider was found, passes the planned ids to the credential stage, which stops listing them as `skipped-unmapped`, and runs the provider stage after the asset stage.
+
+### Why
+
+After #8799 and #8803, custom providers were the one hand-configured OpenCode asset setup did not carry. Once they had been set up by hand, the user was left reading the engine's `models.json` schema.
+
+### Expected merge conflict zones
+
+`bin/lib/setup-import.js` `runSetup` (every setup stage lands there), `bin/lib/setup-models.js` (the report rewrite lane).
+
 ## 2026-09-24 - omo setup imports every OpenCode key an omo provider can serve, and names the real sign-in command (#8799)
 
 ### What changed
