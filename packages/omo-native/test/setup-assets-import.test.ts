@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { loadMcpConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/mcp/config.js"
 import { teardownRoots } from "./teardown.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
@@ -87,6 +88,35 @@ describe("omo setup opencode asset import", () => {
         expect(existsSync(join(item.agentDir, "skills", "migrated-skill", "SKILL.md"))).toBe(true)
         expect(result.stdout).toContain("mcp-imported: 2")
         expect(result.stdout).toContain("skills-imported: 1")
+      })
+    })
+  })
+
+  describe("#given opencode servers whose values the engine's interpolation would reject", () => {
+    describe("#when setup imports the rest", () => {
+      test("#then the pinned engine still loads the written mcp.json and every imported server", () => {
+        const item = fixture()
+        write(join(item.agentDir, "mcp.json"), JSON.stringify({ mcpServers: { mine: { type: "stdio", command: "mine" } } }))
+        opencode(item, {
+          mcp: {
+            bang: { type: "local", command: ["tool", "  !important"] },
+            subst: { type: "local", command: ["sh", "-c", "exec $(which tool)"] },
+            token: { type: "local", command: ["tool"], environment: { TOKEN: "{env:QA_TOKEN}" } },
+            remote: { type: "remote", url: "https://example.test/mcp", headers: { A: "{env:QA_TOKEN}" }, oauth: false },
+            off: { type: "local", command: ["off"], enabled: false },
+          },
+        })
+
+        const result = run(item, ["setup", "--yes"])
+        const loaded = loadMcpConfig({ agentDir: item.agentDir, cwd: item.home, projectTrusted: false, env: { QA_TOKEN: "t0k" } })
+
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain("mcp server bang")
+        expect(result.stdout).toContain("mcp server subst")
+        expect(Object.keys(loaded.servers).sort()).toEqual(["mine", "off", "remote", "token"])
+        expect(loaded.servers.token.config.env).toEqual({ TOKEN: "t0k" })
+        expect(loaded.servers.remote.config.headers).toEqual({ A: "t0k" })
+        expect(loaded.servers.off.state).toBe("disabled")
       })
     })
   })

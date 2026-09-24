@@ -8,9 +8,15 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseJsonc } from "./jsonc.js"
 
-// `interpolateString` in the engine's mcp config rejects any value that looks like command
-// substitution, and one bad value fails the whole file - so such a server is dropped, not copied.
-const REJECTED_BY_ENGINE = /\$\(/
+// `interpolateString` in the engine's mcp config rejects any string value that looks like command
+// substitution - one containing `$(` or starting (after leading whitespace) with `!` - and one bad
+// value fails the whole file, so such a server is dropped, not copied.
+function rejectedByEngine(value) {
+  if (typeof value === "string") return value.trimStart().startsWith("!") || value.includes("$(")
+  if (Array.isArray(value)) return value.some(rejectedByEngine)
+  if (value !== null && typeof value === "object") return Object.values(value).some(rejectedByEngine)
+  return false
+}
 
 export function opencodeConfigDir(home, env) {
   const explicit = env.OPENCODE_CONFIG_DIR?.trim()
@@ -82,7 +88,7 @@ function convertServer(name, entry, notices) {
     notices.push(`NOTICE opencode: mcp server ${name} has no usable command or url; not imported`)
     return undefined
   }
-  if (REJECTED_BY_ENGINE.test(JSON.stringify(config))) {
+  if (rejectedByEngine(config)) {
     notices.push(`NOTICE opencode: mcp server ${name} uses command substitution, which omo refuses to run; not imported`)
     return undefined
   }
