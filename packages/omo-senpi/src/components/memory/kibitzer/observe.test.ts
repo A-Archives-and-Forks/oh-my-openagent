@@ -307,6 +307,61 @@ describe("kibitzer diagnostic streak notice", () => {
     expect((await f.wakes("other-main-session")).length).toBe(2)
     expect(f.warnings).toEqual([])
   })
+
+  test("#given consecutive category-configuration refusals #when observed #then no gate notice fires, exactly one actionable unavailable notice is appended per session, and the diagnostic streak is neither fed nor reset", async () => {
+    const f = await fixture()
+    // A real chain lists a dozen providers; the stored notice keeps the first eight, like every other stored field.
+    const chainProviders = ["chatgpt-subscription", "openai", "deepseek", "qwen", "alibaba", "bailian", "opencode-go", "xai", "anthropic", "github-copilot"]
+    const configuration = { category: "quick", cause: "category_unavailable" as const, missingProviders: chainProviders }
+    const refusal = (wake: number): KibitzerWakeOutcome => outcome({
+      wake,
+      status: "failed",
+      cause: "start_failed",
+      reason: "Kibitzer sidecar model unavailable: quick (category_unavailable)",
+      diagnostic: false,
+      configuration,
+    })
+
+    // Three consecutive configuration refusals: a permanent state, not a streak - the gate stays silent.
+    f.observe.onWake(refusal(1), f.context)
+    f.observe.onWake(refusal(2), f.context)
+    f.observe.onWake(refusal(3), f.context)
+    await f.idle()
+    expect(f.gates()).toEqual([])
+    const notices = f.entries.filter((entry) => entry.customType === "omo-kibitzer:unavailable")
+    expect(notices).toHaveLength(1)
+    expect(notices[0]?.data).toEqual({ version: 1, category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 8) })
+
+    // Every refusal is still recorded, marked non-diagnostic, with the configuration named.
+    const recorded = await f.wakes(SESSION_ID)
+    expect(recorded.map((record) => [record.wake, record.status, record.diagnostic])).toEqual([
+      [1, "failed", false],
+      [2, "failed", false],
+      [3, "failed", false],
+    ])
+    expect(recorded[0]?.configuration).toEqual({ category: "quick", cause: "category_unavailable", missingProviders: chainProviders.slice(0, 8) })
+
+    // A fourth refusal adds no second notice...
+    f.observe.onWake(refusal(4), f.context)
+    expect(f.entries.filter((entry) => entry.customType === "omo-kibitzer:unavailable")).toHaveLength(1)
+
+    // ...and the refusals leave the diagnostic streak alone: two real failures before and one after
+    // still reach the gate threshold exactly once.
+    f.observe.onWake(outcome({ wake: 5, status: "failed" }), f.context)
+    f.observe.onWake(refusal(6), f.context)
+    f.observe.onWake(outcome({ wake: 7, status: "failed", generation: 2 }), f.context)
+    expect(f.gates()).toEqual([])
+    f.observe.onWake(outcome({ wake: 8, status: "failed", generation: 3 }), f.context)
+    expect(f.gates()).toHaveLength(1)
+    expect(f.gates()[0]?.consecutiveFailures).toBe(3)
+
+    // Session shutdown forgets the notice guard: a fresh session under the same id is told again.
+    await f.observe.onSessionShutdown(SESSION_ID, f.context)
+    f.observe.onWake(refusal(1), f.context)
+    expect(f.entries.filter((entry) => entry.customType === "omo-kibitzer:unavailable")).toHaveLength(2)
+    await f.idle()
+    expect(f.warnings).toEqual([])
+  })
 })
 
 describe("kibitzer sidecar retention", () => {

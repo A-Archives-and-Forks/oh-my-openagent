@@ -1,3 +1,51 @@
+## memory/kibitzer: a recall category with no connected provider is ONE actionable notice, never a gate-failure streak
+
+A user whose only connected provider sits outside the `memory.recall.category` chain (the QA report: a
+freshly migrated OpenCode user with just a Kimi For Coding key) saw the sidecar's refusal escalate as a
+red failure: `✗ Kibitzer gate failed · start_failed / Kibitzer sidecar model unavailable: quick
+(beyond_category) / after 3 consecutive failures; check Kibitzer model/provider settings`. The pinning
+policy is deliberate and unchanged - an advisor that reads the live transcript must never land on a
+frontier-priced model outside its category - but the refusal is a PERMANENT CONFIGURATION state, not a
+transient failure, and it was presented as one.
+
+`kibitzer/sidecar-model.ts`: `KibitzerSidecarStartError` now carries the refused `category` and the
+chain's unconnected `missingProviders`. `resolveKibitzerSidecarModel` forwards the resolver's
+`missing_providers` on `category_unavailable`, and for `beyond_category` asks `resolveCategory` again -
+the beyond-category resolution reports only that some other model exists and hides why the category
+itself came up empty, so without the second ask the notice could offer the config-pin half of the fix and
+never name a provider to `/login`. New `kibitzerConfigurationFailure(error)` classifies exactly the two
+category refusals as configuration; `registry_snapshot_unavailable`, `persona_unavailable`,
+`runtime_unavailable` and `session_create_failed` keep their transient meaning and their retry/backoff
+behavior.
+
+`sidecar-outcome.ts` gains an additive `configuration` on the failed wake end and on
+`KibitzerWakeOutcome`, and `isDiagnosticWakeEnd` is false for it, so a dead chain never feeds the
+three-failure streak behind `omo-kibitzer:gate`. `sidecar-wake.ts` passes the classification into
+`startFailureEnd`; the jittered backoff and the carried payload are untouched, so a provider connecting
+mid-session re-resolves against the live registry on the next wake and recovers without a restart.
+`sidecar-turn.ts` carries it into the reported outcome and `observe-record.ts` writes it into
+`wakes.ndjson` masked and bounded (eight provider names, 64 chars each).
+
+`observe.ts`: a wake carrying a configuration state neither feeds nor resets the diagnostic streak, and
+the first one of a session appends ONE `omo-kibitzer:unavailable` entry (bounded exactly as the renderer
+draws it); the guard is forgotten at session shutdown. `notice.ts` renders it as a `⚠` warning naming the
+category, why judging is off (no connected provider serves that chain) and both fixes - `/login
+<provider>` for one of the named providers, or pinning `categories.<name>.model` / `memory.recall.category`
+in `omo.json` - and is fail-closed on a malformed or foreign record. `recall-drain.ts` registers the
+renderer; `tools/session-read.ts` hides the entry from the sidecar's own transcript reads, like the gate
+and nudged entries.
+
+`components/task/category-unavailable-warning.ts`: the task tool's dead-chain warning stated the problem
+and stopped; it now ends with `Connect one with /login, or pin categories.<name>.model in omo.json.`
+
+Tests: `sidecar.test.ts` (a dead chain is a non-diagnostic configuration refusal and self-heals once a
+provider connects), `observe.test.ts` (three refusals produce no gate notice, exactly one bounded
+unavailable notice, and leave the diagnostic streak intact), `notice.test.ts` (both causes, the /login
+fix when providers are known, fail-closed and bounded rendering), `sidecar-model.test.ts` (both refusals
+carry the category and its providers; only they classify as configuration), `index.test.ts` (the renderer
+is registered). Live proof: `scripts/qa/kibitzer-sidecar-e2e.mjs --scenario category-unavailable` (new)
+drives the real senpi binary with only `omo-mock` connected and the recall category on its builtin chain:
+3 refusals, 1 unavailable notice naming the 8 providers, 0 gate entries, 0 child turns, lease released.
 ## ulw-plan: the affected user's ideal state is the north star, recorded in the draft and proven in the plan
 
 `skills/ulw-plan/SKILL.md` replaces the "Decision-complete is the north star" / "Full scope is the

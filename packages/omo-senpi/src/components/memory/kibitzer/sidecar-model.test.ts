@@ -8,6 +8,7 @@ import {
   createKibitzerSidecarChildStarter,
   KIBITZER_SIDECAR_DEFAULT_CATEGORY,
   KibitzerSidecarStartError,
+  kibitzerConfigurationFailure,
   resolveKibitzerSidecarModel,
 } from "./sidecar-model"
 import { KIBITZER_SIDECAR_TOOL_NAMES } from "./sidecar-prompt"
@@ -49,15 +50,19 @@ describe("resolveKibitzerSidecarModel", () => {
   test("#given no registry snapshot or a dead category #when resolved #then the sidecar refuses instead of drifting to another model", () => {
     expect(resolveKibitzerSidecarModel({ config, registry: undefined }))
       .toEqual({ kind: "unavailable", category: "quick", cause: "registry_snapshot_unavailable" })
-    expect(resolveKibitzerSidecarModel({ config: { categories: {} }, registry: { getAvailable: () => [], find: () => undefined } }))
-      .toEqual({ kind: "unavailable", category: "quick", cause: "category_unavailable" })
-    // A registry that still offers SOME usable model must not be adopted beyond the pinned category.
+    const dead = resolveKibitzerSidecarModel({ config: { categories: {} }, registry: { getAvailable: () => [], find: () => undefined } })
+    expect(dead).toMatchObject({ kind: "unavailable", category: "quick", cause: "category_unavailable" })
+    // The dead chain's unconnected providers ride the refusal so the notice can name them.
+    expect(dead.kind === "unavailable" ? dead.missingProviders : undefined).toContain("chatgpt-subscription")
+    // A registry that still offers SOME usable model must not be adopted beyond the pinned category,
+    // and the refusal still names the chain providers a /login would revive.
     const beyond = {
       getAvailable: () => [{ provider: "omo-mock", id: "frontier-1", contextWindow: 200_000, cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 } }],
       find: () => undefined,
     }
-    expect(resolveKibitzerSidecarModel({ config: { categories: {} }, registry: beyond }))
-      .toEqual({ kind: "unavailable", category: "quick", cause: "beyond_category" })
+    const refused = resolveKibitzerSidecarModel({ config: { categories: {} }, registry: beyond })
+    expect(refused).toMatchObject({ kind: "unavailable", category: "quick", cause: "beyond_category" })
+    expect(refused.kind === "unavailable" ? refused.missingProviders : undefined).toContain("chatgpt-subscription")
   })
 })
 
@@ -103,6 +108,24 @@ describe("buildKibitzerSidecarSpec", () => {
   })
 })
 
+describe("kibitzerConfigurationFailure", () => {
+  test("#given the starter's refusals #when classified #then only the category configuration states are configuration failures", () => {
+    const deadChain = new KibitzerSidecarStartError("category_unavailable", "x", { category: "quick", missingProviders: ["chatgpt-subscription"] })
+    expect(kibitzerConfigurationFailure(deadChain)).toEqual({ category: "quick", cause: "category_unavailable", missingProviders: ["chatgpt-subscription"] })
+    const beyond = new KibitzerSidecarStartError("beyond_category", "x", { category: "quick", missingProviders: ["chatgpt-subscription"] })
+    expect(kibitzerConfigurationFailure(beyond)).toEqual({ category: "quick", cause: "beyond_category", missingProviders: ["chatgpt-subscription"] })
+    for (const transient of [
+      new KibitzerSidecarStartError("registry_snapshot_unavailable", "x"),
+      new KibitzerSidecarStartError("persona_unavailable", "x"),
+      new KibitzerSidecarStartError("runtime_unavailable", "x"),
+      new KibitzerSidecarStartError("session_create_failed", "x"),
+      new Error("x"),
+    ]) {
+      expect(kibitzerConfigurationFailure(transient)).toBeUndefined()
+    }
+  })
+})
+
 describe("createKibitzerSidecarChildStarter", () => {
   const base = {
     cwd: "/workspace",
@@ -143,6 +166,19 @@ describe("createKibitzerSidecarChildStarter", () => {
     const categoryError = await category(input).catch((error: unknown) => error)
     expect(categoryError).toBeInstanceOf(KibitzerSidecarStartError)
     expect((categoryError as KibitzerSidecarStartError).code).toBe("registry_snapshot_unavailable")
+
+    const deadRegistry = { getAvailable: () => [], find: () => undefined }
+    const deadChain = createKibitzerSidecarChildStarter({
+      ...base,
+      loadConfig: () => ({}),
+      modelRegistry: () => deadRegistry as unknown as ChildModelRegistry,
+      createRunner: runner,
+    })
+    const deadChainError = await deadChain(input).catch((error: unknown) => error)
+    expect(deadChainError).toBeInstanceOf(KibitzerSidecarStartError)
+    expect((deadChainError as KibitzerSidecarStartError).code).toBe("category_unavailable")
+    expect((deadChainError as KibitzerSidecarStartError).category).toBe("quick")
+    expect((deadChainError as KibitzerSidecarStartError).missingProviders).toContain("chatgpt-subscription")
 
     expect(starts).toBe(0)
   })

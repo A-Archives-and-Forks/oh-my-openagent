@@ -609,7 +609,11 @@ each wake is limited to `tool_budget` tool calls and 90 seconds. When its own co
 of `sidecar_max_tokens` it is replaced by a fresh sidecar seeded with what it already delivered
 or rejected, so a long session never runs the judge out of context. A sidecar whose model fails
 is disposed and recreated after an exponential backoff (1 s doubling to 5 min); nothing it had
-buffered is lost.
+buffered is lost. When no provider serving the `recall.category` chain is connected at all, that
+is a configuration state, not a failure: the session gets one warning notice naming the category
+and its unconnected providers - run `/login <provider>` to connect one, or pin
+`categories.<name>.model` (or `recall.category`) in `omo.json` to a connected model - and judging
+resumes by itself once a chain provider connects.
 
 When it does fire, you see a recollection in the transcript identified as Kibitzer advice: a
 single fixed `Kibitzer` title, then `recalled memory: <hint>`,

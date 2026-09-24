@@ -1,3 +1,18 @@
+## 2026-09-24 - Kibitzer reports an unconfigured recall category as a configuration notice, not a repeating gate failure
+
+When no connected provider serves the `memory.recall.category` chain, the Kibitzer sidecar refused to
+start and that refusal was retried, counted, and escalated as `✗ Kibitzer gate failed · start_failed ...
+after 3 consecutive failures`. The category pinning itself is deliberate policy and is unchanged; only
+the lifecycle and the presentation move: the two category refusals (`category_unavailable`,
+`beyond_category`) are classified as a permanent configuration state that never feeds the diagnostic
+streak, and the session gets exactly ONE `omo-kibitzer:unavailable` warning naming the category, its
+unconnected providers, and both fixes (`/login <provider>`, or pinning `categories.<name>.model` /
+`memory.recall.category` in `omo.json`). Transient refusals keep their retry/backoff behavior, and the
+sidecar re-resolves against the live registry on the next wake, so connecting a provider mid-session
+restores judging without a restart. The task tool's dead-chain warning gained the same fix sentence.
+Full file-level detail in `packages/omo-senpi/changes.md`; `docs/reference/configuration.md` documents the
+notice in the recall section.
+
 ## 2026-09-24 - browser skill installs BrowserSkill only into the browser the user actually uses (#8784)
 
 `package.json` / `bun.lock` move the `omowright` pin to the commit that ships code-yeongyu/omowright#23, and `packages/shared-skills/skills/browser/runtime/omowright` is restaged from it. omowright's `bskOnboard({ browser })` now registers the external extension for exactly one browser picked by `identifyBrowser` (explicit `browser` / `OMOWRIGHT_BROWSER` > the OS default browser when it is also running or used in the last 7 days, or when nothing else is > the only browser in use), and returns `needsChoice: true` with every candidate and its signals, registering nothing, for a Safari/Firefox default, an idle default while another browser runs, several browsers in use, or none; `bskDoctor({ browser })` reports `primary`, `identification` and `registeredElsewhere` (entries an older onboarding left behind - reported, never removed). The catalog adds Arc, Dia, Vivaldi, Opera, Comet and Naver Whale; macOS "running" only counts the app bundle in `/Applications` or `~/Applications`, so automation Chromium builds are ignored.
