@@ -118,6 +118,18 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given an opencode.jsonc whose string values contain a comma before a closing bracket", () => {
+    describe("#when it needs the comment scan", () => {
+      test("#then the string data survives the trailing-comma removal byte for byte", () => {
+        const plan = fixture(undefined, {
+          jsonc: `{\n  // forces the jsonc path\n  "mcp": {\n    "s": { "type": "local", "command": ["run", "a,]", "b, }",], },\n  },\n}\n`,
+        })
+
+        expect(plan.mcpServers).toEqual([{ name: "s", config: { type: "stdio", command: "run", args: ["a,]", "b, }"] } }])
+      })
+    })
+  })
+
   describe("#given global opencode skills", () => {
     describe("#when they are planned", () => {
       test("#then each skill directory is listed by name", () => {
