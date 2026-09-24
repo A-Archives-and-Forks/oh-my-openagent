@@ -31,10 +31,14 @@ function installFetch(script: NpmScript): { calls: () => readonly string[] } {
     const match = NPM_POINT.exec(url)
     if (!match) throw new Error(`unexpected fetch ${url}`)
     const period = match[1] ?? ""
-    const pkg = match[2] ?? ""
-    count += 1
-    const out = script.onPoint(period, pkg, count)
-    return out instanceof Response ? out : json({ downloads: out, package: pkg })
+    const body: Record<string, unknown> = {}
+    for (const pkg of (match[2] ?? "").split(",")) {
+      count += 1
+      const out = script.onPoint(period, pkg, count)
+      if (out instanceof Response) return out
+      body[pkg] = { downloads: out, package: pkg }
+    }
+    return json(body)
   }
   globalThis.fetch = fake as unknown as typeof fetch
   return { calls: () => seen }
@@ -92,7 +96,7 @@ describe("getStats aggregation is all-or-nothing", () => {
   test("omo-ai is part of the download aggregate", async () => {
     const { calls } = installFetch({ onPoint: () => 1 })
     await getStats()
-    expect(calls().some((url) => /\/omo-ai(\?|$)/.test(url))).toBe(true)
+    expect(calls().some((url) => /[/,]omo-ai(,|$)/.test(url))).toBe(true)
   })
 
   test("the Codex edition lazycodex-ai is part of the download aggregate", async () => {

@@ -5,6 +5,18 @@ import { resetStatsCacheForTests } from "../stats"
 import { resetOgDownloadsCacheForTests } from "./downloads"
 import { resetOgStarsCacheForTests } from "./stars"
 
+function upstream(url: string, stars: number, downloadsPerPackage: number): Response {
+  if (url.startsWith("https://api.github.com/repos/")) {
+    return Response.json({ stargazers_count: stars })
+  }
+  const packages = url.split("/").at(-1)?.split(",") ?? []
+  return Response.json(
+    Object.fromEntries(
+      packages.map((pkg) => [pkg, { downloads: downloadsPerPackage, package: pkg }]),
+    ),
+  )
+}
+
 afterEach(() => {
   mock.restore()
   resetStatsCacheForTests()
@@ -71,7 +83,7 @@ test("downstream caches cannot extend the original five-minute freshness window"
   spyOn(Date, "now").mockImplementation(() => now)
   resetOgDownloadsCacheForTests()
   spyOn(globalThis, "fetch").mockImplementation(
-    Object.assign(async () => Response.json({ stargazers_count: 69_999, downloads: 1_000 }), {
+    Object.assign(async (input: RequestInfo | URL) => upstream(String(input), 69_999, 1_000), {
       preconnect: fetch.preconnect,
     }),
   )
@@ -119,7 +131,7 @@ test("the download figure changes the rendered PNG", async () => {
   let downloads = 3_894_680
   spyOn(Date, "now").mockImplementation(() => Date.UTC(2026, 8, 24, 12))
   spyOn(globalThis, "fetch").mockImplementation(
-    Object.assign(async () => Response.json({ stargazers_count: 69_355, downloads }), {
+    Object.assign(async (input: RequestInfo | URL) => upstream(String(input), 69_355, downloads), {
       preconnect: fetch.preconnect,
     }),
   )
