@@ -111,6 +111,8 @@ function convertLocal(entry) {
     command: convertPlaceholders(command[0]),
     ...(command.length > 1 ? { args: command.slice(1).map(convertPlaceholders) } : {}),
     ...(env ? { env } : {}),
+    // Both sides resolve a relative cwd from the workspace directory the session runs in.
+    ...(typeof entry.cwd === "string" && entry.cwd.trim() !== "" ? { cwd: convertPlaceholders(entry.cwd) } : {}),
     ...disabled(entry),
   }
 }

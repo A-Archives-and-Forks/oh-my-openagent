@@ -58,6 +58,16 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given a local mcp server with a working directory", () => {
+    describe("#when it is planned", () => {
+      test("#then the cwd carries over so the server starts where opencode started it", () => {
+        const plan = fixture({ mcp: { rooted: { type: "local", command: ["./bin/server"], cwd: "/srv/tools" } } })
+
+        expect(plan.mcpServers).toEqual([{ name: "rooted", config: { type: "stdio", command: "./bin/server", cwd: "/srv/tools" } }])
+      })
+    })
+  })
+
   describe("#given a remote mcp server", () => {
     describe("#when it is planned", () => {
       test("#then it becomes an http server and an explicit oauth opt-out is preserved", () => {
