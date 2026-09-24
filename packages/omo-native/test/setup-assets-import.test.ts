@@ -159,6 +159,23 @@ describe("omo setup opencode asset import", () => {
     })
   })
 
+  describe("#given an existing mcp.json whose mcpServers is not an object", () => {
+    describe("#when setup is accepted", () => {
+      test("#then the file is left byte-identical and the servers are reported as not imported", () => {
+        const item = fixture()
+        const existing = `${JSON.stringify({ mcpServers: [{ command: "x" }] })}\n`
+        write(join(item.agentDir, "mcp.json"), existing)
+        opencode(item, { mcp: { fresh: { type: "local", command: ["new"] } } })
+
+        const result = run(item, ["setup", "--yes"])
+
+        expect(result.status).toBe(0)
+        expect(readFileSync(join(item.agentDir, "mcp.json"), "utf8")).toBe(existing)
+        expect(result.stdout).toContain("malformed mcp.json; these servers were not imported: fresh")
+      })
+    })
+  })
+
   describe("#given a dry run", () => {
     describe("#when setup previews the assets", () => {
       test("#then nothing is written and the preview names them", () => {

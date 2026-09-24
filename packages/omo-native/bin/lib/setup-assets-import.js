@@ -14,6 +14,10 @@ function readMcpTarget(path) {
   try {
     const document = JSON.parse(bytes)
     if (document === null || typeof document !== "object" || Array.isArray(document)) throw new Error("expected object")
+    // A non-object `mcpServers` is a file the engine already rejects; merging into it would spread an
+    // array into "0", "1" keys, so it is left alone like any other malformed file.
+    const servers = document.mcpServers
+    if (servers !== undefined && (servers === null || typeof servers !== "object" || Array.isArray(servers))) throw new Error("expected mcpServers object")
     return { document, bytes }
   } catch {
     return { malformed: true, bytes }
