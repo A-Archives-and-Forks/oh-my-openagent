@@ -65,6 +65,7 @@
     "script/build-omo-native.ts: omo doctor",
     "script/install-codex-dev.ts: omo get-local-version",
     "script/omo-ai-publish-shape.test.ts: /bin/omo",
-    "script/qa/codex-marketplace-e2e.sh: =omo"
+    "script/qa/codex-marketplace-e2e.sh: =omo",
+    "script/verify-omo-ai-payload.mjs: omo doctor"
   ]
 }
