@@ -68,6 +68,10 @@ export const KNOWN_MODELS = Object.freeze({
   ]),
   xai: Object.freeze(["grok-4.20-0309-non-reasoning", "grok-4.6", "grok-4.7"]),
   xiaomi: Object.freeze(["mimo-v2.5-pro", "mimo-v2.6-pro"]),
+  // Engine Z.AI ids. `zai-coding-plan` is the OpenCode id: kept so older sessions still export
+  // instead of collapsing to `custom`. Native chains route through `zai` / `zai-coding-cn` (#8824).
+  zai: Object.freeze(["glm-5.2", "glm-5.3"]),
+  "zai-coding-cn": Object.freeze(["glm-5.2", "glm-5.3"]),
   "zai-coding-plan": Object.freeze(["glm-5.2", "glm-5.3"]),
 } as const)
 

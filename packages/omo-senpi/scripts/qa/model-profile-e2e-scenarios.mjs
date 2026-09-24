@@ -183,7 +183,7 @@ export const SCENARIOS = {
     mockModels: ["mock-1", "glm-5.3", "gpt-6-sol"],
     cliModel: undefined,
     recommendedModels: undefined,
-    registerProviders: ["chatgpt-subscription", "zai-coding-plan"],
-    expect: { model: "glm-5.3", provider: "zai-coding-plan", notice: APPLIED_TYPE, thinking: "max" },
+    registerProviders: ["chatgpt-subscription", "zai"],
+    expect: { model: "glm-5.3", provider: "zai", notice: APPLIED_TYPE, thinking: "max" },
   },
 }
