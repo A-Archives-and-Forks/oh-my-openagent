@@ -58,7 +58,9 @@ try {
 
 NEVER launch anything against, or clear cookies/cache/site data from, the user's live profile;
 the attached engine is the only sanctioned way to a signed-in page. If no extension is connected,
-run the `browser` skill's `scripts/browser-install.mjs`, relay its one human step, and wait — do
+run the `browser` skill's `scripts/browser-install.mjs` for the browser the user actually uses
+(from memory, or its detection; on `needsChoice` ask them and pass `--browser=<id>`), relay its
+one human step, and wait — do
 not fall back to the owned engine for an authenticated criterion.
 
 ## Capture a screenshot at a fixed viewport
