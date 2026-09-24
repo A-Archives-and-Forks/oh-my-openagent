@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, realpathSync } from "node:fs"
+import { closeSync, lstatSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { delimiter, dirname, isAbsolute, join, win32 } from "node:path"
 import { parseJsonc } from "./jsonc.js"
@@ -84,10 +84,11 @@ function classify(owner) {
 }
 
 // A dangling symlink still occupies the name, so presence is lstat, not whether the target resolves.
+// A directory, FIFO or socket named `omo` is not a command the shell would run.
 function pathExists(path) {
   try {
-    lstatSync(path)
-    return true
+    const stats = lstatSync(path)
+    return stats.isFile() || stats.isSymbolicLink()
   } catch {
     return false
   }
@@ -97,7 +98,7 @@ function resolveOwner(binPath) {
   const real = realPathOf(binPath)
   const fromLink = isInsideNodeModules(real) ? ownerOfFile(real) : null
   if (fromLink !== null) return fromLink
-  const shim = readWholeFile(binPath)?.slice(0, SHIM_READ_LIMIT)
+  const shim = readFileHead(binPath, SHIM_READ_LIMIT)
   if (shim === undefined) return null
   if (shim.includes(CODEX_LIGHT_WRAPPER_MARKER)) {
     const version = shim.match(CODEX_LIGHT_CACHE_VERSION)?.[1]
@@ -161,11 +162,27 @@ function realPathOf(path) {
   }
 }
 
+// Only regular files: readFileSync on a FIFO blocks until a writer opens it, hanging the doctor.
 function readWholeFile(path) {
   try {
-    return readFileSync(path, "utf8")
+    return statSync(path).isFile() ? readFileSync(path, "utf8") : undefined
   } catch {
     return undefined
+  }
+}
+
+// A launcher's head is enough to classify it, and a compiled `omo` binary is tens of megabytes.
+function readFileHead(path, limit) {
+  let descriptor
+  try {
+    if (!statSync(path).isFile()) return undefined
+    descriptor = openSync(path, "r")
+    const buffer = Buffer.alloc(limit)
+    return buffer.toString("utf8", 0, readSync(descriptor, buffer, 0, limit, 0))
+  } catch {
+    return undefined
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor)
   }
 }
 

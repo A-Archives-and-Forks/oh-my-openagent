@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, dirname, join, relative } from "node:path"
@@ -8,6 +9,11 @@ import { updateTarget } from "../bin/lib/package-paths.js"
 
 const RESTORE = "bun add -g omo-ai@beta"
 const REPAIR = "bunx oh-my-openagent@beta install --platform=native"
+const MIGRATION_MODULE = join(import.meta.dir, "..", "bin", "lib", "doctor-migration.js")
+// Runs the report in a child so a read that blocks on a FIFO fails by timeout instead of hanging the suite.
+const CHILD_REPORT = `const { migrationReport } = await import(${JSON.stringify(MIGRATION_MODULE)})
+const env = { PATH: process.env.PROBE_PATH, BUN_INSTALL: process.env.PROBE_BUN }
+console.log(JSON.stringify(migrationReport({ env, homeDir: process.env.PROBE_HOME, platform: "linux" }, "restore")))`
 const roots: string[] = []
 
 type Sandbox = { root: string; home: string; npmPrefix: string; npmBin: string; bunRoot: string; bunBin: string }
@@ -286,5 +292,37 @@ describe("omo doctor migration checks", () => {
       expect(lines[updateIndex + 1]).toStartWith("WARN another omo precedes omo-ai on PATH:")
       expect(lines[updateIndex + 2]).toStartWith("WARN legacy package oh-my-openagent@4.19.4")
     })
+  })
+
+  describe("#given PATH dirs holding an omo that is not a regular file or symlink", () => {
+    test("#then a directory named omo is not reported as a command", () => {
+      const sandbox = createSandbox()
+      installBunNative(sandbox)
+      const dirBin = join(sandbox.root, "dir-bin")
+      mkdirSync(join(dirBin, "omo"), { recursive: true })
+
+      expect(report(sandbox, [dirBin, sandbox.bunBin])).toEqual([])
+    })
+
+    test.skipIf(process.platform === "win32")("#then no FIFO is read and only the symlink occupying the name is reported", () => {
+      const sandbox = createSandbox()
+      const fifoBin = join(sandbox.root, "fifo-bin")
+      const linkBin = join(sandbox.root, "link-bin")
+      const opencodeConfig = join(sandbox.home, ".config", "opencode", "opencode.json")
+      for (const directory of [fifoBin, linkBin, dirname(opencodeConfig)]) mkdirSync(directory, { recursive: true })
+      for (const fifo of [join(fifoBin, "omo"), opencodeConfig]) expect(spawnSync("mkfifo", [fifo]).status).toBe(0)
+      symlinkSync(join(fifoBin, "omo"), join(linkBin, "omo"))
+
+      const child = spawnSync(process.execPath, ["-e", CHILD_REPORT], {
+        env: { ...process.env, PROBE_PATH: [fifoBin, linkBin].join(delimiter), PROBE_HOME: sandbox.home, PROBE_BUN: sandbox.bunRoot },
+        encoding: "utf8",
+        timeout: 20000,
+      })
+
+      expect(child.signal).toBeNull()
+      const lines: string[] = JSON.parse(child.stdout)
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain(`${join(linkBin, "omo")} (unknown owner)`)
+    }, 30000)
   })
 })
