@@ -163,7 +163,7 @@ The OpenCode comment-checker hook downloads its pinned binary directly from [Git
 
 ### OmO Native (beta): `omo` via `omo-ai`
 
-OmO Native ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi engine with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup.
+OmO Native ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi engine with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup. Coming from the OpenCode edition? Follow [Migrating from OpenCode](./migrating-from-opencode.md): it covers the installer, what `omo setup` carries over, the habit mapping, and running both editions side by side.
 
 It is beta-channel only. The tag is mandatory:
 
