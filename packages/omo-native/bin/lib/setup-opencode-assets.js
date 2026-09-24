@@ -117,22 +117,42 @@ function convertLocal(entry) {
   }
 }
 
-function convertRemote(entry) {
+// OpenCode's pre-registered OAuth client, in the engine's `oauth` shape (a space-separated `scope`
+// becomes the `scopes` list). The engine has no client secret or per-server redirect URI, so a
+// server that needs either is reported rather than silently imported as a public client.
+function convertOauth(name, oauth, notices) {
+  if (oauth === null || typeof oauth !== "object" || Array.isArray(oauth)) return undefined
+  const scopes = typeof oauth.scope === "string" ? oauth.scope.split(/\s+/).filter(Boolean) : []
+  const converted = {
+    ...(typeof oauth.clientId === "string" && oauth.clientId !== "" ? { clientId: convertPlaceholders(oauth.clientId) } : {}),
+    ...(Number.isInteger(oauth.callbackPort) && oauth.callbackPort >= 0 && oauth.callbackPort <= 65_535 ? { callbackPort: oauth.callbackPort } : {}),
+    ...(scopes.length > 0 ? { scopes } : {}),
+  }
+  const dropped = ["clientSecret", "redirectUri"].filter((key) => oauth[key] !== undefined)
+  if (dropped.length > 0) {
+    notices.push(`NOTICE opencode: mcp server ${name} oauth ${dropped.join(" and ")} has no omo equivalent and was not carried over; start omo and run /mcp auth ${name} to sign in`)
+  }
+  return Object.keys(converted).length > 0 ? converted : undefined
+}
+
+function convertRemote(name, entry, notices) {
   if (typeof entry.url !== "string" || entry.url.trim() === "") return undefined
   const headers = convertRecord(entry.headers)
+  const oauth = convertOauth(name, entry.oauth, notices)
   return {
     type: "http",
     url: convertPlaceholders(entry.url),
     ...(headers ? { headers } : {}),
     // OpenCode's `oauth: false` disables OAuth auto-detection; the engine spells that `auth: false`.
     ...(entry.oauth === false ? { auth: false } : {}),
+    ...(oauth ? { oauth } : {}),
     ...disabled(entry),
   }
 }
 
 function convertServer(name, entry, notices) {
   if (entry === null || typeof entry !== "object") return undefined
-  const config = entry.type === "remote" ? convertRemote(entry) : convertLocal(entry)
+  const config = entry.type === "remote" ? convertRemote(name, entry, notices) : convertLocal(entry)
   if (!config) {
     notices.push(`NOTICE opencode: mcp server ${name} has no usable command or url; not imported`)
     return undefined

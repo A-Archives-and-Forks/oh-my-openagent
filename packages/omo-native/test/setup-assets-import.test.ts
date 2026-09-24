@@ -105,6 +105,8 @@ describe("omo setup opencode asset import", () => {
             token: { type: "local", command: ["tool"], environment: { TOKEN: "{env:QA_TOKEN}" } },
             remote: { type: "remote", url: "https://example.test/mcp", headers: { A: "{env:QA_TOKEN}" }, oauth: false },
             off: { type: "local", command: ["off"], enabled: false },
+            client: { type: "remote", url: "https://o.test/mcp", oauth: { clientId: "cid", scope: "read write", callbackPort: 19876 } },
+            rooted: { type: "local", command: ["tool"], cwd: "/srv/tools" },
           },
         })
 
@@ -114,7 +116,9 @@ describe("omo setup opencode asset import", () => {
         expect(result.status).toBe(0)
         expect(result.stdout).toContain("mcp server bang")
         expect(result.stdout).toContain("mcp server subst")
-        expect(Object.keys(loaded.servers).sort()).toEqual(["mine", "off", "remote", "token"])
+        expect(Object.keys(loaded.servers).sort()).toEqual(["client", "mine", "off", "remote", "rooted", "token"])
+        expect(loaded.servers.client.config.oauth).toEqual({ clientId: "cid", scopes: ["read", "write"], callbackPort: 19876 })
+        expect(loaded.servers.rooted.config.cwd).toBe("/srv/tools")
         expect(loaded.servers.token.config.env).toEqual({ TOKEN: "t0k" })
         expect(loaded.servers.remote.config.headers).toEqual({ A: "t0k" })
         expect(loaded.servers.off.state).toBe("disabled")

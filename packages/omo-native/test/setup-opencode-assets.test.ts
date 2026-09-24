@@ -85,6 +85,25 @@ describe("opencode asset plan", () => {
     })
   })
 
+  describe("#given a remote mcp server with a pre-registered oauth client", () => {
+    describe("#when it is planned", () => {
+      test("#then the client id, scopes and callback port carry over and a client secret is reported", () => {
+        const plan = fixture({
+          mcp: {
+            gh: { type: "remote", url: "https://gh.test/mcp", oauth: { clientId: "cid", clientSecret: "s3cret", scope: "repo read:org", callbackPort: 19876 } },
+          },
+        })
+
+        expect(plan.mcpServers).toEqual([{
+          name: "gh",
+          config: { type: "http", url: "https://gh.test/mcp", oauth: { clientId: "cid", callbackPort: 19876, scopes: ["repo", "read:org"] } },
+        }])
+        expect(plan.notices.join("\n")).toContain("gh oauth clientSecret")
+        expect(plan.notices.join("\n")).not.toContain("s3cret")
+      })
+    })
+  })
+
   describe("#given a value the engine's interpolation rejects", () => {
     describe("#when it is planned", () => {
       test("#then the server is dropped with a notice instead of breaking every mcp load", () => {
