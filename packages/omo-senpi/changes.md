@@ -1,3 +1,9 @@
+## skills: the hyperplan restart hint names the brand command
+
+`skills/hyperplan/SKILL.md` told the user to "Restart senpi without `--no-omo-task`". On OmO
+Native the command is `omo`. The hint now names `omo` on OmO Native and `senpi` on a plain senpi
+install, matching the `--list-tips` brand-command rule.
+
 ## skills: the onboard re-run instruction names the brand command
 
 `skills/onboarding/SKILL.md` still told the user to bring the tour back with `senpi --onboard`.
