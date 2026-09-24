@@ -14,7 +14,7 @@ The main agent thinks with your session model. The easiest way to choose it is a
 | --- | --- | --- | --- |
 | Daily · Normal | `daily-normal` | Gets any task done without fuss. | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (medium)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
 | Daily · Heavy | `daily-heavy` | Gets any task done, after thinking it over from more sides. | same Claude providers `/claude-fable-5-1 (xhigh)` |
-| Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription\|openai/gpt-6-sol-fast (medium)` -> `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-sol (medium)` |
+| Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
 | Geeky · Heavy | `geeky-heavy` | Works on one task and thinks it over from every side. | `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-astra (xhigh)` |
 
 With no `model_profile` at all, a fresh desktop or headless session runs **Recommended** (`recommended`), which is not a lane: `claude-opus-5-5` (medium) -> `claude-fable-5-1` (xhigh) -> `kimi-k3` (max) -> `gpt-6-astra` (xhigh) -> `gpt-6-sol` (medium) -> `glm-5.3` (max), each rung served only by its ranked providers (Claude subscription, then the Anthropic API, Copilot, OpenCode; Kimi Code, then Moonshot and OpenCode Go; ChatGPT subscription, then the OpenAI API, Copilot, OpenCode; Z.ai Coding Plan, then OpenCode Go). Gateway aggregators such as OpenGateway and OpenRouter are never picked for it. It is the same order Senpi's recommended-model auto-switch uses in the terminal.
@@ -39,7 +39,7 @@ You can still pick with `/model` and switch mid-session; the main agent switches
 
 ### The recommended models
 
-We tune the orchestration prompt against the models on the Recommended ladder: Claude Opus 5.5, Claude Fable 5.1, Kimi K3, GPT-6 Astra, GPT-6 Sol and GLM 5.3. Their order is our order of preference, and each of the four lanes is a slice of it.
+We tune the orchestration prompt against the models on the Recommended ladder: Claude Opus 5.5, Claude Fable 5.1, Kimi K3, GPT-6 Astra, GPT-6 Sol and GLM 5.3. Their order is our order of preference. The Daily lanes and Geeky · Heavy are slices of it; Geeky · Normal runs GPT-5.6 Sol, the GPT-5 flagship, for people who prefer it over GPT-6.
 
 - **Claude Opus 5.5 and Claude Fable 5.1** are the reference configuration for the orchestration prompt: long nested todos, delegation tables, many tool calls in a row.
 - **GPT-6 Astra and GPT-6 Sol** get the GPT-native `gpt-6-astra` preset, built for autonomous, principle-driven work. Over-orchestration on small bounded tasks is a known risk on GPT; give it a goal, not a recipe.
@@ -62,9 +62,9 @@ The harness ships a prompt preset per model family. When your session model matc
 | `claude-opus-5-5` | Claude Opus 5.5 | Current best Opus. Steerable and literal. The reference configuration. |
 | `claude-opus-5` | Other Claude Opus 5 ids | The Opus 5 core. |
 | `claude-opus-4-5` and later 4.x presets | The Claude Opus 4.x line | One preset per 4.x release; `claude-opus-4-6` is still the third `writing` rung. |
-| `gpt-6-astra` | Every GPT-6 model: Astra, Sol, Sol Fast, Luna | The GPT-6 family shares one prompting guide, so they share one preset. This is what both Geeky lanes and the `ultrabrain`, `deep-low`, `deep-high` and `quick` categories run. |
-| `gpt-5.6` / `gpt-5.5` | GPT-5.6 ids (Sol, Terra) and GPT-5.5 | GPT-native prompt: concise principles, explicit decision criteria. |
-| `gpt-5.4` / `gpt-5.3-codex` / `gpt-5.2` | Older GPT-5 ids | Kept for configs that still pin them. |
+| `gpt-6-astra` | Every GPT-6 model: Astra, Sol, Sol Fast, Luna | The GPT-6 family shares one prompting guide, so they share one preset. This is what Geeky · Heavy and the `ultrabrain`, `deep-low`, `deep-high` and `quick` categories run. |
+| `gpt-5.6` / `gpt-5.5` | GPT-5.6 ids (Sol, Terra) and GPT-5.5 | GPT-native prompt: concise principles, explicit decision criteria. Geeky · Normal runs on it. |
+| `gpt-5.4`, `gpt-5.3-codex` and older GPT-5 presets | Older GPT-5 ids | Kept for configs that still pin them. |
 | `kimi-k3` | Kimi K3 (`k3` on Kimi Code) and Devin SWE-2 | Instruction-following mirrors Claude closely. The preset is calibrated to stop overthinking and keep work moving, so expect thinking-token cost. |
 | `kimi-k2-8` / `kimi-k2-7` / `kimi-k2-6` | Kimi K2.8 (including `kimi-for-coding`), K2.7 (including `kimi-for-coding-highspeed`, the `explore` and `librarian` head), K2.6 | Older Kimi line. Not a recommended main-agent configuration. |
 | `glm-5.3` / `glm-5.2` | GLM 5.3 and 5.2 | Claude-like, slightly looser on long nested workflows. GLM 5.3 is the last Recommended rung; see the validation note above. |

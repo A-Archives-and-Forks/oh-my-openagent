@@ -679,7 +679,7 @@ If the user wants to override which model a curated agent or category uses, edit
 
 **GLM 5.2 as the session model:** GLM 5.2 gets the GLM-calibrated prompt preset because its model ID is recognized as GLM. It still has less maintainer validation than Claude or Kimi.
 
-**Dangerous overrides** (no prompt support): main agent → GPT models without a preset (presets cover the GPT-6 family and GPT-5.2 through 5.6); `explore` → Opus (massive cost waste); `librarian` → Opus (same).
+**Dangerous overrides** (no prompt support): main agent → GPT models without a preset (presets cover the GPT-6 family and the GPT-5 line through 5.6); `explore` → Opus (massive cost waste); `librarian` → Opus (same).
 
 #### Optional: community model-management tools
 

@@ -4,7 +4,7 @@
 
 - New lead paragraph: with no config the session runs Recommended and children resolve their own chains, so most readers can skip the page.
 - "The recommended tier" becomes "The recommended models" (the six-model Recommended ladder); GPT-5.6 Sol and "Fable 5" naming are gone, and Kimi K3 / GLM 5.3 are no longer called unsupported while the default ladder picks them.
-- The preset table covers every name `resolvePresetName` returns (GPT-6 family -> `gpt-6-astra`, `claude-fable-5-1`, `claude-opus-5`, the Opus 4.x line, `kimi-k2-6/7/8`, SWE-2 -> `kimi-k3`, the DeepSeek V4 split, `grok-4.7`, `gpt-5.2`..`gpt-5.6`).
+- The preset table covers every name `resolvePresetName` returns (GPT-6 family -> `gpt-6-astra`, `claude-fable-5-1`, `claude-opus-5`, the Opus 4.x line, `kimi-k2-6/7/8`, SWE-2 -> `kimi-k3`, the DeepSeek V4 split, `grok-4.7`, the GPT-5 line through `gpt-5.6`).
 - Category defaults for `ultrabrain` / `deep-low` / `deep-high` read `chatgpt-subscription/...`; chain rungs list `anthropic-subscription` / `chatgpt-subscription` first as the source does; the `quick` Luna rung lists `openai`; `plan-reviewer` has one elided rung, not two.
 - Documented: `requiresModel` gates (`ultrabrain`, `deep-low`, `deep-high`, `architect`), dead-chain hiding, the explicit-config bypass, the ulw reviewer categories, the TUI exception in the rules list, a resolution step for the gate, current Fable 5.1 placements, and Example C moved to `gpt-6-sol`.
 - The retired `deep` category name is replaced by `deep-low` / `deep-high`.
