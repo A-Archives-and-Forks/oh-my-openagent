@@ -131,20 +131,28 @@ function resolveOwner(binPath: string): OmoBinOwner | null {
   if (shim === null) return null
   const lightWrapper = codexLightWrapperOwner(shim)
   if (lightWrapper !== null) return lightWrapper
-  // A relative shim path (every Windows `.cmd`) must not be walked: resolving it would climb out of
-  // the current working directory and report whatever package.json happens to sit above it.
-  const referenced = shim.match(/["']([^"'\n]*node_modules[\\/][^"'\n]*)["']/)?.[1]
-  const fromReference =
-    referenced === undefined || !isAbsolute(referenced) || !isInsideNodeModules(referenced)
-      ? null
-      : ownerOfFile(referenced)
-  if (fromReference !== null) return fromReference
+  // Ownership comes from the manifest of an installed package the shim really launches, never from
+  // the text alone: a script that merely mentions a legacy package path stays foreign and is kept.
+  for (const entry of shimEntryPaths(shim, dirname(binPath))) {
+    if (!isInsideNodeModules(entry) || !pathExists(entry)) continue
+    const owner = ownerOfFile(entry)
+    if (owner !== null) return owner
+  }
+  return null
+}
 
-  const name = shim.match(/node_modules[\\/](@[^\\/"'\s]+[\\/])?([^\\/"'\s]+)/)
-  const scope = name?.[1]?.replace(/[\\/]$/, "")
-  const bare = name?.[2]
-  if (bare === undefined) return null
-  return { name: scope === undefined ? bare : `${scope}/${bare}`, version: null }
+// A launcher names its entry file absolutely (omo-ai's bun shim) or relative to its own directory
+// (`%dp0%` / `%~dp0` in npm's `.cmd`, `$basedir` in the sh and `.ps1` shims npm and pnpm write). A
+// relative path without that prefix resolves against the caller's cwd, so it names nothing.
+function shimEntryPaths(shim: string, shimDirectory: string): readonly string[] {
+  const paths: string[] = []
+  for (const match of shim.matchAll(/(?<=["'])[^"'\n]*node_modules[\\/][^"'\n]*(?=["'])/g)) {
+    const quoted = match[0]
+    const relativeToShim = quoted.match(/^(?:%~?dp0%?|\$\{?basedir\}?)[\\/]?(.*)$/)?.[1]
+    if (relativeToShim !== undefined) paths.push(join(shimDirectory, relativeToShim.replace(/\\/g, "/")))
+    else if (isAbsolute(quoted)) paths.push(quoted)
+  }
+  return paths
 }
 
 function codexLightWrapperOwner(shim: string): OmoBinOwner | null {

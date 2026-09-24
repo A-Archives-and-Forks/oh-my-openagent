@@ -140,24 +140,45 @@ describe("scanOmoBins", () => {
     expect(entries[0]?.packageVersion).toBe("4.19.4")
   })
 
-  test("#given a windows-style shim naming the package by relative path #when scanning #then the owner is still identified", () => {
-    // given
-    const created = root("win-shim")
-    const binDir = join(created, "bin")
-    mkdirSync(binDir, { recursive: true })
+  test("#given npm's windows shims naming the package relative to the shim dir #when scanning #then the owner is read from that package", () => {
+    // given the npm global layout on Windows: shims in the prefix, packages in <prefix>/node_modules
+    const prefix = root("win-shim")
+    const packageDir = join(prefix, "node_modules", "oh-my-openagent")
+    mkdirSync(join(packageDir, "bin"), { recursive: true })
+    writeFileSync(join(packageDir, "package.json"), JSON.stringify({ name: "oh-my-openagent", version: "4.19.4" }))
+    writeFileSync(join(packageDir, "bin", "oh-my-opencode.js"), "#!/usr/bin/env node\n")
     writeFileSync(
-      join(binDir, "omo.cmd"),
-      '@"%~dp0\\..\\lib\\node_modules\\oh-my-openagent\\bin\\oh-my-opencode.js" %*\r\n',
+      join(prefix, "omo.cmd"),
+      '@ECHO off\r\n"%_prog%"  "%dp0%\\node_modules\\oh-my-openagent\\bin\\oh-my-opencode.js" %*\r\n',
     )
+    writeFileSync(join(prefix, "omo.ps1"), '& "$basedir/node$exe"  "$basedir/node_modules/oh-my-openagent/bin/oh-my-opencode.js" $args\n')
 
     // when
-    const entries = scanOmoBins({ pathDirectories: [binDir], extraDirectories: [], isWindows: true })
+    const entries = scanOmoBins({ pathDirectories: [prefix], extraDirectories: [], isWindows: true })
 
     // then
     expect(entries[0]?.kind).toBe("legacy")
     expect(entries[0]?.packageName).toBe("oh-my-openagent")
-    expect(entries[0]?.packageVersion).toBeNull()
-    expect(entries[0]?.shimPaths).toEqual([join(binDir, "omo.cmd")])
+    expect(entries[0]?.packageVersion).toBe("4.19.4")
+    expect(entries[0]?.shimPaths).toEqual([join(prefix, "omo.cmd"), join(prefix, "omo.ps1")])
+  })
+
+  test("#given the user's own omo script that only mentions a legacy package path #when scanning #then it stays foreign and is never removed", () => {
+    // given
+    const binDir = join(root("own-script"), "bin")
+    mkdirSync(binDir, { recursive: true })
+    writeFileSync(
+      join(binDir, "omo"),
+      '#!/bin/sh\n# replaced my old "node_modules/oh-my-openagent" setup\nexec node "$HOME/node_modules/oh-my-openagent/bin/cli.js" "$@"\n',
+      { mode: 0o755 },
+    )
+
+    // when
+    const entries = scanOmoBins(environmentOf([binDir]))
+
+    // then
+    expect(entries[0]?.kind).toBe("foreign")
+    expect(legacyOmoBins(entries)).toEqual([])
   })
 
   test("#given a directory repeated on PATH #when scanning #then it is reported once", () => {
