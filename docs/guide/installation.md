@@ -172,7 +172,7 @@ bun add -g omo-ai@beta
 omo
 ```
 
-A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
+A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. Without bun, `npm i -g omo-ai@beta` works too. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
 **Where omo keeps its state.** OmO Native stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout
@@ -182,7 +182,7 @@ without copying it, so an older standalone install keeps working. Set `OMO_CODIN
 override the location; the legacy `SENPI_*` and `PI_*` variables are still read when the `OMO_*`
 one is unset.
 
-**Upgrade order on older machines.** If the machine still has oh-my-openagent/oh-my-opencode 4.19.4 or earlier installed globally, that package owns a global `omo` bin and the install above fails with EEXIST. Upgrade or uninstall the old package first, then install `omo-ai@beta`.
+**Older machines: the global `omo` name is already taken.** oh-my-openagent/oh-my-opencode 4.19.4 and earlier ship their own global `omo` command. A raw `npm i -g omo-ai@beta` on such a machine fails with EEXIST, and a raw `bun add -g omo-ai@beta` succeeds while the old command keeps winning on PATH, so `omo --version` still prints `4.19.4`. `bunx oh-my-openagent@beta install --platform=native` (`npx` without bun; the `@beta` tag is required, `latest` is 4.19.4 and has no native platform) handles it: it removes that one stale `omo` entry (the old package and its other commands stay), installs `omo-ai@beta`, and then verifies `omo --version`. If another `omo` still shadows it, the installer prints the exact `export PATH=...` line to fix the order. When you later remove the old package: `bun remove -g oh-my-openagent` leaves omo-ai's `omo` alone, but `npm uninstall -g oh-my-openagent` deletes every bin name the old package declared, including the `omo` that npm-installed omo-ai now owns, so run `npm i -g omo-ai@beta` again right after it.
 
 ### First run: `omo setup`
 
