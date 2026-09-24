@@ -1,3 +1,13 @@
+## 2026-09-24 - omo setup carries OpenCode custom providers into the engine's models.json (#8836)
+
+An OpenCode power user's hand-configured `provider.<id>` block (an OpenAI- or Anthropic-compatible endpoint with `baseURL`, `apiKey` and a `models` map) used to vanish on migration: `omo setup` reported the id as `skipped-unmapped` and printed a placeholder `omo.json` template instead. Setup now reads those blocks from the same merged OpenCode config files the MCP/skills import reads, previews each one (`custom provider acme -> https://api.acme.example/v1 (openai-completions, from @ai-sdk/openai-compatible), 2 model(s): acme/acme-large, acme/acme-small; key: from opencode config apiKey`), and on consent writes the provider into `~/.omo/agent/models.json` and its key into `~/.omo/agent/auth.json`, so `acme/acme-large` is selectable in the first session. Existing ids in either file are never overwritten, both files get a timestamped backup, `--dry-run` previews only, and a second run changes nothing. The npm package decides the engine api (`@ai-sdk/openai-compatible` -> `openai-completions`, the default OpenCode itself uses when `npm` is absent; `@ai-sdk/anthropic` -> `anthropic-messages`; `@ai-sdk/openai` -> `openai-responses`); any other package, a provider id omo already serves, a baseURL that is not a fixed URL, and a provider with no usable model are reported by name and skipped. The placeholder template is no longer printed when a custom provider was found, and the credential stage no longer lists that id as `skipped-unmapped`. Details in `packages/omo-native/changes.md`.
+
+||||||| 0009632c6
+
+||||||| 2a04ce61b
+
+||||||| 01a12a538
+
 ## 2026-09-24 - native GLM chains pick an imported zai key (#8827)
 
 OmO Native builtin model profiles and senpi-task category chains named OpenCode's `zai-coding-plan` provider, which the pinned engine does not register (engine ids are `zai` and `zai-coding-cn`). After `omo setup` imports that key as `zai` (#8799), Recommended (ranked providers only) and Daily · Normal never selected `glm-5.3` even when `/model` listed `zai/glm-5.3`. Native `GLM_PROVIDERS` and the `unspecified-high` category GLM rung now list `zai`, `zai-coding-cn`, `opencode-go`. `kimi-for-coding` stays next to engine `kimi-coding` because those native arrays copy the senpi-task category pair (leftover OpenCode-id key); they are not shared with the OpenCode edition, which keeps its own table in `packages/model-core`. A test loads the pinned senpi's `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and fails if a chain provider id is neither an engine id nor an allow-listed alias.
@@ -9,7 +19,6 @@ OmO Native builtin model profiles and senpi-task category chains named OpenCode'
 ||||||| f9843a842
 
 ||||||| 2a04ce61b
-
 ## 2026-09-24 - omo doctor reports the OpenCode-edition migration leftovers (#8831)
 
 `omo doctor` said nothing about the machine it had just been migrated from: an `omo` earlier on PATH than omo-ai's, the legacy `oh-my-openagent` / `oh-my-opencode` package still installed globally (the one whose `npm uninstall -g` can take omo-ai's `omo` with it, #8793), and the OpenCode plugin still registered in the OpenCode config. `packages/omo-native/bin/lib/doctor-migration.js` is new and adds three report-only checks, printed right after the `INFO Update:` line; `doctor.js` only imports and calls it.

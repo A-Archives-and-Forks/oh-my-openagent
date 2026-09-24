@@ -1,8 +1,6 @@
-import {
-  chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
-} from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { canonicalAgentDir } from "./agent-dir.js"
 import { detectHarnesses } from "./setup-detect.js"
@@ -11,6 +9,9 @@ import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
 import { formatCredentialGuidance } from "./setup-guidance.js"
 import { importOpencodeAssets } from "./setup-assets-import.js"
+import { literalConfigValue, readAuthStore, writeAuthStore } from "./auth-store.js"
+import { planOpencodeProviders } from "./setup-opencode-providers.js"
+import { importOpencodeProviders } from "./setup-providers-import.js"
 
 export const API_KEY_TYPE_ACCEPTLIST = new Set(["api_key"])
 const SQLITE_STORES = [
@@ -34,14 +35,6 @@ function targetProvider(provider, providerMap) {
 function candidate(provider, key, source, providerMap) {
   const target = targetProvider(provider, providerMap)
   return target ? { provider: target, key, source } : { provider, source, unmapped: true }
-}
-
-// opencode keeps a pasted key verbatim and never interprets it, but the engine resolves every stored
-// key as a config value: a leading `!` runs a shell command and `$NAME` / `${NAME}` interpolate the
-// environment. `$$` and `$!` are the engine's literal escapes, so the engine reads back the exact
-// bytes opencode held.
-function literalConfigValue(value) {
-  return value.replace(/[$!]/g, "$$$&")
 }
 
 function readOpencode(path, providerMap, plan) {
@@ -116,26 +109,15 @@ async function buildPlan(options, providerMap) {
   return plan
 }
 
-function readTarget(path) {
-  if (!existsSync(path)) return { entries: {}, bytes: undefined }
-  const bytes = readFileSync(path, "utf8")
-  try {
-    const entries = JSON.parse(bytes)
-    if (entries === null || typeof entries !== "object" || Array.isArray(entries)) throw new Error("expected object")
-    return { entries, bytes }
-  } catch {
-    return { malformed: true, bytes }
-  }
-}
-
-function classify(plan, existing) {
+// An unmapped key whose provider the custom-provider stage carries over is imported there, with it.
+function classify(plan, existing, customProviderIds) {
   const additions = []
   const skippedExisting = []
   const skippedUnmapped = []
   const reserved = new Set(Object.keys(existing))
   for (const item of plan.candidates) {
     if (item.unmapped) {
-      skippedUnmapped.push(item.provider)
+      if (!customProviderIds.has(item.provider)) skippedUnmapped.push(item.provider)
     } else if (reserved.has(item.provider)) {
       skippedExisting.push(item.provider)
     } else {
@@ -177,26 +159,6 @@ function printCounts(result) {
   ].join("\n") + "\n")
 }
 
-function timestamp() {
-  return new Date().toISOString().replace(/[-:]/g, "")
-}
-
-function writeTarget(path, current, additions) {
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  if (current.bytes !== undefined) copyFileSync(path, `${path}.bak-${timestamp()}`)
-  const next = { ...current.entries }
-  for (const item of additions) next[item.provider] = { type: "api_key", key: item.key }
-  const temporary = `${path}.tmp-${process.pid}`
-  try {
-    writeFileSync(temporary, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 })
-    chmodSync(temporary, 0o600)
-    renameSync(temporary, path)
-    chmodSync(path, 0o600)
-  } finally {
-    if (existsSync(temporary)) unlinkSync(temporary)
-  }
-}
-
 async function ask(question, options) {
   if (options.yes) return true
   if (options.stdin?.isTTY !== true || options.stdout?.isTTY !== true) {
@@ -217,16 +179,16 @@ function consent(result, target, options) {
   return ask(`Import API credentials for ${providers} into ${target}? [y/N] `, options)
 }
 
-async function importCredentials(runtime, target, args) {
+async function importCredentials(runtime, target, args, customProviderIds) {
   const providerMap = readProviderMap()
   const plan = await buildPlan(runtime, providerMap)
   for (const notice of plan.notices) process.stdout.write(`${notice}\n`)
-  const current = readTarget(target)
+  const current = readAuthStore(target)
   if (current.malformed) {
     process.stdout.write("WARN senpi: malformed auth.json; credentials were not imported\n")
     return
   }
-  const result = classify(plan, current.entries)
+  const result = classify(plan, current.entries, customProviderIds)
   const dryRun = args.includes("--dry-run")
   printPlan(result, dryRun, providerMap, current.entries)
   if (dryRun) return
@@ -238,7 +200,7 @@ async function importCredentials(runtime, target, args) {
     if (runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
     return
   }
-  writeTarget(target, current, result.additions)
+  writeAuthStore(target, current, result.additions)
   printCounts(result)
 }
 
@@ -248,17 +210,17 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   const agentDir = canonicalAgentDir(env, home)
   const runtime = { stdin: process.stdin, stdout: process.stdout, ...options, home, env }
   const inventory = await detectHarnesses(runtime)
+  // Read-only, and read up front: the model report and the credential stage both need to know
+  // which custom providers the provider stage will carry.
+  const providers = planOpencodeProviders(runtime)
   printSetupReport(inventory)
-  printModelReport(inventory)
-  await importCredentials(runtime, join(agentDir, "auth.json"), args)
-  await importOpencodeAssets({
-    runtime,
-    agentDir,
-    args,
-    confirm: async (question) => {
-      const accepted = await ask(question, { ...runtime, yes: args.includes("--yes") })
-      if (!accepted && runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
-      return accepted
-    },
-  })
+  printModelReport(inventory, { customProviders: providers.providers.length > 0 })
+  await importCredentials(runtime, join(agentDir, "auth.json"), args, new Set(providers.providers.map((item) => item.id)))
+  const confirm = async (question) => {
+    const accepted = await ask(question, { ...runtime, yes: args.includes("--yes") })
+    if (!accepted && runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
+    return accepted
+  }
+  await importOpencodeAssets({ runtime, agentDir, args, confirm })
+  await importOpencodeProviders({ plan: providers, agentDir, args, confirm })
 }

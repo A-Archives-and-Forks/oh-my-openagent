@@ -57,7 +57,11 @@ function mergeDeep(base, overlay) {
   return merged
 }
 
-function readDeclaredServers(files, notices) {
+/**
+ * One top-level object section (`mcp`, `provider`) of the merged OpenCode config. `label` names
+ * what a file that cannot be read costs, in its notice.
+ */
+export function readOpencodeSection(files, section, label, notices) {
   let declared = {}
   for (const path of files) {
     if (!existsSync(path)) continue
@@ -65,27 +69,27 @@ function readDeclaredServers(files, notices) {
     try {
       parsed = parseJsonc(readFileSync(path, "utf8"))
     } catch (error) {
-      notices.push(`WARN opencode: could not parse ${path}: ${error.message}; its mcp servers were not imported`)
+      notices.push(`WARN opencode: could not parse ${path}: ${error.message}; its ${label} were not imported`)
       continue
     }
     if (!isPlainObject(parsed)) {
-      notices.push(`WARN opencode: ${path} is not an object; its mcp servers were not imported`)
+      notices.push(`WARN opencode: ${path} is not an object; its ${label} were not imported`)
       continue
     }
-    if (isPlainObject(parsed.mcp)) declared = mergeDeep(declared, parsed.mcp)
+    if (isPlainObject(parsed[section])) declared = mergeDeep(declared, parsed[section])
   }
   return declared
 }
 
 // OpenCode substitutes `{env:NAME}`; the engine substitutes `${NAME}`. Same intent, same value.
-function convertPlaceholders(value) {
+export function convertPlaceholders(value) {
   return typeof value === "string" ? value.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, "${$1}") : value
 }
 
 // What is left after conversion is a placeholder the engine has no spelling for: `{file:path}`
 // (OpenCode inlines that file's contents) or `{env:NAME}` with a NAME outside [A-Za-z_][A-Za-z0-9_]*.
 // Copied as-is it would reach the server as literal text, so the server is refused instead.
-function unconvertedPlaceholder(value) {
+export function unconvertedPlaceholder(value) {
   if (typeof value === "string") return /\{(?:file|env):[^}]+\}/.test(value)
   if (Array.isArray(value)) return value.some(unconvertedPlaceholder)
   if (value !== null && typeof value === "object") return Object.values(value).some(unconvertedPlaceholder)
@@ -206,7 +210,7 @@ export function planOpencodeAssets(options = {}) {
   const sources = opencodeConfigSources(home, env)
   const notices = []
   const mcpServers = []
-  for (const [name, entry] of Object.entries(readDeclaredServers(sources.files, notices))) {
+  for (const [name, entry] of Object.entries(readOpencodeSection(sources.files, "mcp", "mcp servers", notices))) {
     const converted = convertServer(name, entry, notices)
     if (converted) mcpServers.push({ name, config: converted })
   }
