@@ -5,18 +5,18 @@ import {
   isOurFilePluginEntry,
   isOmoManagedTuiEntry,
   isServerPluginEntry,
+  tuiPluginSpecName,
 } from "../doctor/checks/tui-plugin-config"
 import {
   LEGACY_PLUGIN_NAME,
   PLUGIN_NAME,
   getOpenCodeConfigDir,
   parseJsonc,
-  type PluginEntry,
 } from "../../shared"
 import { writeFileAtomically } from "../../shared/write-file-atomically"
 
 type ConfigShape = {
-  plugin?: PluginEntry[]
+  plugin?: unknown
   [key: string]: unknown
 }
 
@@ -47,12 +47,22 @@ function readServerConfig(configDir: string): ConfigShape | null {
   return null
 }
 
-function pluginEntries(config: ConfigShape): PluginEntry[] {
-  return Array.isArray(config.plugin) ? config.plugin : []
+function pluginEntries(config: ConfigShape): unknown[] {
+  if (Array.isArray(config.plugin)) return config.plugin
+  if (typeof config.plugin === "string") return [config.plugin]
+  return []
+}
+
+function pluginFieldInvalid(config: ConfigShape): boolean {
+  return config.plugin !== undefined && !Array.isArray(config.plugin) && typeof config.plugin !== "string"
 }
 
 function serverPluginEntry(config: ConfigShape): string | undefined {
-  return pluginEntries(config).find((entry): entry is string => isServerPluginEntry(entry))
+  for (const entry of pluginEntries(config)) {
+    const name = tuiPluginSpecName(entry)
+    if (name !== null && isServerPluginEntry(name)) return name
+  }
+  return undefined
 }
 
 function desiredTuiEntry(serverEntry: string): string | null {
@@ -95,7 +105,7 @@ export function ensureTuiPluginEntry(opts: { configDir?: string } = {}): EnsureT
 
   const tuiJsonPath = join(configDir, "tui.json")
   const { config, malformed } = readTuiConfig(tuiJsonPath)
-  if (malformed) {
+  if (malformed || pluginFieldInvalid(config)) {
     return { changed: false, reason: "malformed" }
   }
 
@@ -105,7 +115,9 @@ export function ensureTuiPluginEntry(opts: { configDir?: string } = {}): EnsureT
   // load the plugin twice. Foreign entries keep their position and shape.
   const entries = pluginEntries(config)
   const otherEntries = entries.filter((entry) => !isOmoManagedTuiEntry(entry))
-  const isOnlyDesiredEntry = entries.length === otherEntries.length + 1 && entries.includes(desiredEntry)
+  const pluginIsArray = Array.isArray(config.plugin)
+  const isOnlyDesiredEntry =
+    pluginIsArray && entries.length === otherEntries.length + 1 && entries.includes(desiredEntry)
   if (isOnlyDesiredEntry) {
     return { changed: false, reason: "already-present" }
   }
