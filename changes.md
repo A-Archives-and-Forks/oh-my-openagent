@@ -1,4 +1,4 @@
-## 2026-09-24 - native GLM chains pick an imported zai key (#8824)
+## 2026-09-24 - native GLM chains pick an imported zai key (#8827)
 
 OmO Native builtin model profiles and senpi-task category chains named OpenCode's `zai-coding-plan` provider, which the pinned engine does not register (engine ids are `zai` and `zai-coding-cn`). After `omo setup` imports that key as `zai` (#8799), Recommended (ranked providers only) and Daily · Normal never selected `glm-5.3` even when `/model` listed `zai/glm-5.3`. Native `GLM_PROVIDERS` and the `unspecified-high` category GLM rung now list `zai`, `zai-coding-cn`, `opencode-go`. `kimi-for-coding` stays next to engine `kimi-coding` because those native arrays copy the senpi-task category pair (leftover OpenCode-id key); they are not shared with the OpenCode edition, which keeps its own table in `packages/model-core`. A test loads the pinned senpi's `builtinProviders()` the same way `packages/omo-native/test/provider-map-registry.test.ts` does and fails if a chain provider id is neither an engine id nor an allow-listed alias.
 
