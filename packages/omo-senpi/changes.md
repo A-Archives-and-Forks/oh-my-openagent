@@ -6,6 +6,15 @@
 
 ||||||| e1693d8b4
 
+||||||| f9843a842
+
+## extension: component info logs are silent unless OMO_DEBUG is set
+
+`src/extension/compose.ts` `defaultLogger.info` no longer writes to stderr unless `OMO_DEBUG` is set. `warn`/`error` unchanged; stdout still unused (#8564). Call sites such as ulw-loop skip and model-profile selection stay as `logger.info`; the model-profile user sentence already goes through `pi.sendMessage`. `compose.test.ts` covers silent-by-default, printed-with-switch, warn-always, nothing on stdout. omo#8819.
+
+||||||| cb5ea3272
+
+||||||| e1693d8b4
 ## memory: the system prompt keeps its memory block for the whole session (#8470)
 
 The memory block is compiled once per session at the memory HEAD of its first turn and persisted as an `omo-memory:projection-pin` entry; later memory commits reach the model as a `<memory_notice>` line instead of rewriting the system prompt, so they no longer invalidate the prompt cache. Compaction, `/recompile`, and a vanished pinned commit repin; new and forked sessions pin fresh.
