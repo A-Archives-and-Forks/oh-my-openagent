@@ -1,3 +1,11 @@
+## 2026-09-24 - omo-senpi component info logs stay off stderr unless OMO_DEBUG is set (#8826)
+
+`packages/omo-senpi/src/extension/compose.ts` `defaultLogger.info` printed every component diagnostic through `console.error`, so `omo -p` / `--mode json` dumped objects (ulw-loop skip, ulw-execute-continuation skip, model-profile selection) onto the user's stderr. `info` is now silent unless `OMO_DEBUG` is set (the same switch the bun launcher shim already uses); `warn` and `error` still go to stderr; stdout is still unused (#8564). The model-profile selection sentence already reaches the user through the engine notice (`pi.sendMessage`); the extra object dump is the debug line. Documented in `docs/reference/configuration.md`. Fixes #8819.
+
+||||||| e1693d8b4
+
+||||||| ed0fb0601
+
 ## 2026-09-24 - omo update actually runs the detected package-manager command (#8830)
 
 `omo update` printed `omo is updated via bun: bun add --cwd '<pkg>' -g omo-ai@beta` (or the npm equivalent) and exited 0. The TUI's "Update Available" box showed the same line, so the user copied a package-manager command from a tool that already knew which manager installed it. `--cwd` into the global package dir also does not retarget `bun add -g`: bun still writes `$BUN_INSTALL/install/global` (or `~/.bun`).
@@ -17,7 +25,6 @@ Verification: `bun test packages/omo-native/test/self-update.test.ts packages/om
 Verification: `bun test packages/omo-opencode/src/cli` 841/0, native-edition nudge surfaces 60/0, with new cases for the offer (yes -> verified path, no, verify-failed, spawn error), the TUI wiring and `--no-tui`, and the tag per channel; each of three production mutations (bare `omo`, offer when unverified, hard-coded `@beta`) fails its cases. PTY sandbox run of the built installer answering yes: setup starts from `<sandbox>/bun/bin/omo` and imports the seeded OpenCode key after its own `[y/N]`; `--no-tui` run prints the step and writes no `~/.omo`.
 
 ||||||| e1693d8b4
-
 ## 2026-09-24 - A memory commit mid-session no longer changes the system prompt; the change arrives as a notice (#8470)
 
 The senpi memory block was compiled from the memory repo HEAD on every turn. A commit that added a file (the agent's own `memory create`, a reflection, a facts run, another session) grew `<external_projection>`, a system-file edit rewrote the projected body, and a large edit moved the pressure line; each changed the system prompt hash, so the provider's prefix cache missed the whole conversation behind it (~180K tokens rewritten on a 190K session).
