@@ -1,3 +1,21 @@
+## model profiles: a rung whose provider's request auth does not resolve is skipped
+
+`components/model-profile/index.ts`: the rung walk matched against `modelRegistry.getAvailable()`,
+which lists every provider with STORED credentials. An Anthropic OAuth login whose refresh token the
+provider rejects (`invalid_grant`) stayed listed, so an unset `model_profile` (Recommended, #8770)
+pinned `anthropic/claude-opus-5-5` on every headless and desktop start; the first turn failed on the
+refresh and senpi's `retry.fallbackChains` walked only opus-5, opus-4-8 and opus-4-6 before exiting,
+never reaching a connected `zai/glm-5.3`. After a profile (not a literal pin) resolves, the component
+now calls `modelRegistry.getApiKeyAndHeaders(model)` - the resolution the first turn performs, which
+refreshes an expired OAuth token - and on `{ ok: false }` drops every `<provider>/*` selector and
+resolves again, one pass per failed provider. The applied and unavailable notices name the failed
+providers with `/login <provider>`; `details.authFailed` carries `{ provider, model }`, and the raw
+refresh error goes to the logger only. Hosts without `getApiKeyAndHeaders` keep the plain walk; a
+literal `provider/model` pin is applied unprobed. Out of scope: senpi's retry chain still retries
+same-provider models after an auth failure mid-session. Tests: `index.test.ts` stale Anthropic login ->
+GLM applied, every ladder provider failing -> unavailable with the login hint, a verified first rung
+probed once, a failing pin still applied.
+
 ## ultrawork: the directive reports at handoffs instead of state changes only (#8847)
 
 `skills/ultrawork/SKILL.md` `# Role` now reads `Expert coding agent. Ship verified work; report at handoffs, not between them.` (was `... No process narration.`). In `# Output discipline`, the during-execution bullet `surface only state changes (existing tests read, scenario PASS/FAIL with evidence paths, reviewer verdict)` becomes one handoff block at every todo phase change, blocker, plan change, and before a long pass, written after weighing what the user asked and needs to know now: `Ask / wanted / For you (ledger, evidence paths, PASS/FAIL, reviewer verdict) / Now / Next`, with nothing between handoffs. The first-line and final-message bullets are unchanged. `src/components/ultrawork/generated-directive.ts` and `plugin/extensions/omo.js` are regenerated (`embed-directive.mjs`, `build-extension.mjs`). The forbidden-token guard passes because the new text uses no codex-only tool names. `TODO_FANOUT_REMINDER` stays as it is because it already fits the handoff contract.
