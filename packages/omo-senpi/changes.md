@@ -1,3 +1,13 @@
+## local launcher: `omo update` points at bun
+
+`src/install/local-launcher.ts`: the generated local `omo` launcher (sibling-store installs) printed
+`omo is updated via npm: npm i -g omo-ai[@beta]` and carried the same npm command as the brand's
+`update.command`, so a local install was the one surface still steering users to an npm install of
+omo-ai. It now prints `omo is updated via bun: bun add -g omo-ai[@beta]` and carries that command,
+matching the README, the install guide, and senpi's Node.js runtime notice (code-yeongyu/senpi#2157).
+The published launcher (`omo-native/bin/lib/package-paths.js`) is unchanged: it already answers with
+the manager that installed omo-ai. `plugin/scripts/install.mjs` is regenerated from the source.
+
 ## model profiles: a rung the first turn could not use is skipped
 
 `components/model-profile/index.ts`: the rung walk matched against `modelRegistry.getAvailable()`,
