@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### PLEASE REMOVE OPENCODE V1 FOR OMO, LAZYCODEX, IMMEDIATELY.
+
+Because OmO Native is out for real. 5.0.0 is its first stable release, and `bun add -g omo-ai` installs it from npm's default channel with no `@beta` tag.
+
+```bash
+bun add -g omo-ai
+```
+
+Strictly speaking you don't have to remove anything. The OmO plugin for OpenCode v1 and LazyCodex keep running, but from here on they get degraded support: new features land in OmO Native first, and some never reach the plugins because the hosts cannot carry them. We recommend removing them anyway. We stopped using them weeks ago, not out of neglect, but because OmO Native is what we keep reaching for.
+
+OmO Native is the `omo` command: the pi-based senpi engine with the OMO extension built in. The rest of these notes are for people who run omo today as the OpenCode plugin (oh-my-openagent) or as LazyCodex on the Codex CLI.
+
+### Moving from the OpenCode edition or LazyCodex
+
+```bash
+bunx oh-my-openagent install --platform=native   # or: bun add -g omo-ai
+omo setup
+omo doctor
+```
+
+The installer removes the stale global `omo` that oh-my-openagent 4.19.x and older shipped, installs `omo-ai` with bun (npm when bun is missing) and checks that `omo` on your PATH is the new one. `omo setup` reads what your OpenCode install already knows and carries it across after one confirmation: provider API keys, custom OpenAI- or Anthropic-compatible providers from `opencode.jsonc`, MCP servers, global skills and your model choices. OAuth logins are listed with the `/login` command to run, since tokens do not move between tools. `omo doctor` then prints which task categories your connected providers can run and what the OpenCode edition left behind, each with the command that fixes it. `omo update` updates in place.
+
+### What you get that the plugins could not give you
+
+| | OpenCode edition / LazyCodex | OmO Native |
+| --- | --- | --- |
+| Runtime | a plugin inside someone else's host, restarted to apply | one `omo` binary on the senpi engine |
+| Tool calls | one tool per model turn | first-party CodeMode: code that calls tools, in parallel |
+| Memory | none built in | git-backed memory with a self block, reflection, and Kibitzer recall |
+| Multi-model work | Team Mode (OpenCode), `spawn_agent` (Codex) | mass ulw: a DAG of nodes routed to different models |
+| Browser | MCP add-ons | omowright built in, attached to your own browser |
+
+**The engine.** senpi is our fork of pi. The OMO extension loads into it directly instead of negotiating with a host's plugin API, so hooks, tools and the TUI behave the same on every platform. Cold start to ready fell from 5.8 s to 850 ms across three profiling rounds, and `omo --help` answers in 28 ms.
+
+**Memory, and Kibitzer.** Memory lives in a git repository of markdown files. Persona, the person you work with, and a self block are projected into every session. The self block is how the agent forms a self: from what you call it and how you work with it. Reflection and dreaming run as sandboxed background workers after a session settles. Kibitzer is the new part. It is a second agent loop that runs beside your main session on the cheap `quick` category, and it wakes only when a turn touches a memory it has not judged yet. It reads with five read-only tools, checks, and then drops the "oh right" into your conversation through a single hidden nudge. It cannot write memory. Recall costs about 5 ms per tool call on a large corpus, down from 308 ms, and the model it runs on is pinned to the `quick` chain so it never lands on a frontier-priced model.
+
+**CodeMode.** Every step can be a JavaScript or Python eval cell whose prelude carries `tool.<name>()`, `parallel()`, `pipeline()` and `agent()`. Twenty reads become one cell and one round trip. On our own sessions, with the model held the same, OmO Native used about half the context per round trip that the OpenCode edition did (0.39x on GPT-5.5, 0.69x on Opus 4.8), and a live GPT-6 Astra session reports a 97.5% prompt-cache hit in its footer.
+
+**mass ulw.** Put "mass ulw" in a prompt and the work becomes a graph: nodes with dependency edges, each routed by category to a different model, fed through workpools with retries and recovery. The graph runs live in the TUI and in a herdr side pane ([omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) by @jc01rho).
+
+**Browser use.** omowright ships with OmO Native. It drives the browser you already use, with your logins, through BrowserSkill, and hands off to you for a login, CAPTCHA or one-time code. For bot-scored sites it runs its own Chromium on a cloaked profile. Nothing to install.
+
+**You can see what it is doing.** Your first request opens a phased todo list. Every todo change names your original request, the task in progress and the next one, and the agent reports when the plan is set, when a phase closes and when the work ends. A turn that stops with todos open gets one nudge to finish them. Persistent monitors survive a restart, and questions arrive as cards you answer with a digit or a click.
+
+**Lighter on your machine.** Subagents run as sessions inside one shared daemon instead of one engine process each. File watching is one worker per host, where 1,000 sessions used to mean 1,023 threads. Background processes die with the session that started them.
+
+**Models.** You name the kind of work and omo picks the model for it. `deep-low`, the default deep lane, now runs GPT-5.6 Sol Fast at medium. Model profiles offer Daily and Geeky lanes, each in Normal and Heavy. Claude, ChatGPT, Kimi and GLM subscriptions sign in with `/login`.
+
+### OpenCode v2
+
+We know about OpenCode v2. Our answer to it is coming, and it takes time. Until then, please run OmO Native: it is the version we use every day, and the one this release was built with.
+
+### Next
+
+A desktop app is coming soon, and computer use after it.
+
 ### Changed
 
 **OmO Native moves to senpi 2026.9.26.** ([#8882](https://github.com/code-yeongyu/oh-my-openagent/issues/8882), [senpi#2139](https://github.com/code-yeongyu/senpi/issues/2139), [senpi#2137](https://github.com/code-yeongyu/senpi/issues/2137), [senpi#2135](https://github.com/code-yeongyu/senpi/issues/2135), [senpi#2143](https://github.com/code-yeongyu/senpi/issues/2143)) The Cursor CLI lane now sends your request together with the hidden messages of the same turn, so the first request of a session no longer reaches the model as an empty plan reminder. The first-turn plan waits for your own first request instead of arming on an onboarding greeting. A handoff block that restates your request is no longer mistaken for a repeating turn, while a turn that really repeats is still stopped.
