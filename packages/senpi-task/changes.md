@@ -2,9 +2,10 @@
 
 `manager/credential-failure.ts` (new): `isCredentialFailure(message)` recognizes a provider answer no other model on
 the same provider can fix (401, `invalid_grant`, `OAuth refresh failed`, `subscription is required`, invalid API
-key; a 403 only when its text names the account, credential, key, organization or subscription, mirroring
-senpi's credential-pool classifier - a model-scoped 403 such as "model not enabled for your project" keeps the
-sibling rungs and gets no re-authentication hint), and `runtimeFallbackCandidates(record, message)` drops every remaining `fallback_models`
+key; a 403 only when its text names the account, credential, key, organization or subscription AND does not scope
+itself to a model - the word `model(s)` or the failed model id - so "Your organization must be verified to use
+this model" or "The API key is valid, but access to restricted-model is forbidden" keep the sibling rungs and get
+no re-authentication hint), and `runtimeFallbackCandidates(record, message)` drops every remaining `fallback_models`
 rung on the failed provider for such a message. `manager/manager.ts` `#tryRuntimeFallback` walks that list
 instead of `fallback_models[0]`, so a migrated OpenCode Go key whose subscription lapsed (403 on
 `minimax-m3`) no longer relaunches on `minimax-m2.7`: the next provider runs, or the task ends in error when

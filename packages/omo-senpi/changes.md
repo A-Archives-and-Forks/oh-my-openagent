@@ -8,9 +8,15 @@ refresh and senpi's `retry.fallbackChains` walked only opus-5, opus-4-8 and opus
 never reaching a connected `zai/glm-5.3`. New `request-auth.ts` reproduces the first turn's
 resolution through senpi's public `ModelRuntime.getAuth` (`modelRegistry.modelRuntime`) in two stages:
 the provider credential, per account when `modelRegistry.authStorage.get(provider).accounts` holds a
-pool (a `pinned` account is the only candidate, otherwise any resolving account keeps the provider,
-matching the engine's rotation), then the model itself, which adds the model's configured headers.
-A provider-scope failure (`refresh`: senpi's `ModelsError` code `oauth`; `credentials`: any other
+pool and the engine may rotate it (a `pinned` account is the only candidate, otherwise any resolving
+account keeps the provider; new `credential-policy.ts` turns rotation off, and with it every account
+but the flat credential, exactly where senpi's `couldRotateCredentials` does: a runtime API key -
+`getProviderAuthStatus(p).source === "runtime"` - or `providers.<p>.credentials.rotation: false` in
+`<agentDir>/models.json`, read as JSONC since the runtime exposes no accessor for it), then the model
+itself, which adds the model's configured headers. Limits of the equivalence: whether a rotating
+pool actually fails over on the first turn depends on senpi's pool classifier (401/unauthorized/
+invalid-key text fails over, a plain `invalid_grant` body does not), and a slot the pool sidecar has
+blocked still counts here. A provider-scope failure (`refresh`: senpi's `ModelsError` code `oauth`; `credentials`: any other
 throw) drops every `<provider>/*` selector, a model-scope failure (`request`) drops only that
 selector, and the walk resolves again - bounded by the number of available selectors. The plain
 `getApiKeyAndHeaders` probe is gone: it resolves only the flat credential (a rejected default account
@@ -24,20 +30,27 @@ resolve (check that model's headers in models.json)`. `details.authFailed` is ex
 `{ provider, model, reason }[]`. The default log line carries the candidate, the reason and the
 error class/code only (`ModelsError/oauth`), because the composed logger writes warnings to stderr
 without `OMO_DEBUG` and the raw message quotes shell commands and response bodies;
-`sanitizedAuthErrorDetail` (first line per cause, shell commands / bodies / stacks / key-shaped
-assignments / long opaque strings redacted, 240 chars) is logged at info level only under
+`sanitizedAuthErrorDetail` (first line per cause, class name verbatim; in the message, shell commands /
+`body=` / `details=` / stacks dropped, the whole value of any secret-named field - `Authorization: Bearer
+<token>`, JSON `"access_token": "..."`, `api_key=...` - and of `bearer`/`basic` schemes, URL userinfo and
+query strings redacted whatever their length, remaining 24+ character opaque strings masked; 240 chars)
+is logged at info level only under
 `OMO_DEBUG`. Hosts whose registry exposes no `modelRuntime` keep the plain walk; a literal
-`provider/model` pin is applied unprobed. Cost: one resolution per skipped candidate at start (a
-rejected refresh waits for senpi's exchange timeout), sequential. Out of scope: senpi's retry chain
+`provider/model` pin is applied unprobed. Cost: one resolution per attempted account (and one per
+model whose provider resolved) at start, sequentially; a rejected refresh waits for senpi's exchange
+timeout. Out of scope: senpi's retry chain
 still retries same-provider models after an auth failure mid-session, and senpi's own
 `recommended-models` builtin still treats a stored credential as connected. Tests: `index.test.ts`
 (desktop vs headless guidance, two rejected providers then a healthy one, exhaustion across
 providers with the exact details shape, a model-local failure keeping the sibling, a pool with a
-healthy sibling, a pinned dead account, one probe pair on a healthy first rung, an unprobed pin, a
-host without a runtime, and the composed default logger with a private marker with and without
+healthy sibling, a pinned dead account, rotation off via JSONC models.json / via a runtime key / for
+another provider only, one probe pair on a healthy first rung, an unprobed pin, a host without a
+runtime, and the composed default logger with a long private marker and short bearer/JSON-token
+secrets with and without
 `OMO_DEBUG`); `request-auth.test.ts` runs the same walk against senpi's real `ModelRegistry`
-(`AuthStorage.inMemory` pool with a rejecting fixture OAuth lane, a pinned rejected account, a
-provider whose one model header cannot resolve) plus the sanitizer; `scripts/qa/model-profile-e2e.mjs`
+(`AuthStorage.inMemory` pool with a rejecting fixture OAuth lane, a pinned rejected account, the same
+pool under a runtime built over a `models.json` with `rotation: false`, a provider whose one model
+header cannot resolve) plus the sanitizer with short secrets in eight formats; `scripts/qa/model-profile-e2e.mjs`
 gains `unset-rejected-login-falls-back` and `unset-pooled-login-sibling-account` (`authJson` seeds
 the sandbox `auth.json`, `oauthProviders` gives the fixture lane an offline OAuth block whose exchange
 refuses `rejected-refresh`) checking the assistant turn's provider, `authFailed`, no `invalid_grant`
