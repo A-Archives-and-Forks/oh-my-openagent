@@ -246,6 +246,7 @@ async function reattachLegacyRecord(
 
 async function hasForeignLiveOwner(context: LifecycleContext, record: TaskRecord): Promise<boolean> {
   if (isHostSessionRecord(record)) {
+    if (record.residency_state !== "resident") return false
     return await context.hostSessionProbe.daemonAlive(record.host_session)
       && await context.hostSessionProbe.sessionLive(record.host_session)
   }
