@@ -19,10 +19,7 @@
     "packages/omo-opencode/src/cli/install-native/run-native-install.test.ts: /bin/omo x2",
     "packages/omo-opencode/src/cli/install-platform-resolution.test.ts: omo cleanup",
     "packages/omo-opencode/src/cli/install-platform-resolution.test.ts: omo install",
-    "packages/omo-opencode/src/cli/installer-native-setup-offer.test.ts: /bin/omo",
-    "script/lazycodex-published-smoke-workflow.test.ts: omo doctor x2",
-    "script/lazycodex-published-smoke-workflow.test.ts: omo install x3",
-    "script/publish-lazycodex-workflow.test.ts: omo install"
+    "packages/omo-opencode/src/cli/installer-native-setup-offer.test.ts: /bin/omo"
   ],
   "docs": [
     ".agents/skills/codex-qa/SKILL.md: omo get-local-version",
@@ -65,7 +62,6 @@
     "packages/senpi-task/changes.md: omo doctor",
     "script/build-omo-native.ts: omo doctor",
     "script/install-codex-dev.ts: omo get-local-version",
-    "script/omo-ai-publish-shape.test.ts: /bin/omo",
     "script/qa/codex-marketplace-e2e.sh: =omo",
     "script/verify-omo-ai-payload.mjs: omo doctor"
   ]
