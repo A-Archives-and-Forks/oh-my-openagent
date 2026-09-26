@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **An expired Claude login no longer breaks the first headless or desktop turn.** With no `model_profile` set, OmO Native starts on the Recommended ladder, and a Claude subscription whose saved login can no longer be refreshed still counted as connected: the session was pinned to Claude Opus 5.5, every turn failed on the refresh, and the retry walked only other Claude models before giving up, even when another provider on the ladder (for example Z.ai GLM 5.3) was connected. A model profile now checks that a provider's credentials actually resolve before it picks that provider, moves on to the next rung when they do not, and the start notice names the provider with the `/login <provider>` command that restores it. A literal `provider/model` pin in `model_profile` is still applied as written.
 
+**A delegated task no longer retries a provider that already rejected your credentials.** When a subagent's turn failed because a provider refused the key (for example an OpenCode Go key whose subscription lapsed, carried over by `omo setup`) or an OAuth login could not be refreshed, the task retried the next model on the same provider, which failed the same way. It now skips the rest of that provider and moves to the next provider in the category, or reports the error with the `/login <provider>` command that restores it when none is left. This covers subagents running as separate processes (the default on macOS and Linux); an in-process subagent still walks its chain inside the engine.
+
 ## [5.0.0-beta.90] - 2026-09-24
 
 ### Changed
