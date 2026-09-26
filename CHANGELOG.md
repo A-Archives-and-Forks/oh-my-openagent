@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-09-26
+
 ### PLEASE REMOVE OPENCODE V1 FOR OMO, LAZYCODEX, IMMEDIATELY.
 
 Because OmO Native is out for real. 5.0.0 is its first stable release, and `bun add -g omo-ai` installs it from npm's default channel with no `@beta` tag.
