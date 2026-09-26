@@ -1,8 +1,10 @@
 ## Runtime fallback skips the rest of a provider whose credential is dead
 
 `manager/credential-failure.ts` (new): `isCredentialFailure(message)` recognizes a provider answer no other model on
-the same provider can fix (401/403, `invalid_grant`, `OAuth refresh failed`, `subscription is required`,
-invalid API key), and `runtimeFallbackCandidates(record, message)` drops every remaining `fallback_models`
+the same provider can fix (401, `invalid_grant`, `OAuth refresh failed`, `subscription is required`, invalid API
+key; a 403 only when its text names the account, credential, key, organization or subscription, mirroring
+senpi's credential-pool classifier - a model-scoped 403 such as "model not enabled for your project" keeps the
+sibling rungs and gets no re-authentication hint), and `runtimeFallbackCandidates(record, message)` drops every remaining `fallback_models`
 rung on the failed provider for such a message. `manager/manager.ts` `#tryRuntimeFallback` walks that list
 instead of `fallback_models[0]`, so a migrated OpenCode Go key whose subscription lapsed (403 on
 `minimax-m3`) no longer relaunches on `minimax-m2.7`: the next provider runs, or the task ends in error when
@@ -15,8 +17,9 @@ turn-level walk, which process children (`rpc-host`, `rpc`) use. An in-process c
 engine as `retry.fallbackChains` (`runners/in-process/runtime-fallback-settings.ts`), and senpi's retry
 controller still retries same-provider rungs there; that belongs to the engine. A dead key is only visible
 at request time (a stored key resolves), so nothing here probes before the spawn. Tests:
-`auth-failure-fallback.test.ts` (non-credential failure keeps the same provider and its text, a 403 skips
-to zai, a rejected OAuth refresh with only same-provider rungs ends the task with the re-authentication hint).
+`auth-failure-fallback.test.ts` (non-credential failure keeps the same provider and its text, a subscription 403
+skips to zai, a rejected OAuth refresh with only same-provider rungs ends the task with the re-authentication hint),
+`credential-failure.test.ts` (the classifier's positive and negative cases, a model-scoped 403 keeping the sibling).
 
 ## Task-category coverage for omo doctor and omo setup (#8858)
 

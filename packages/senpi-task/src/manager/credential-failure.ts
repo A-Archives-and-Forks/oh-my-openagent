@@ -1,13 +1,21 @@
 import type { ResolvedModelRecord, TaskRecord } from "../state"
 
 // A provider answer that no other model on the SAME provider can fix: the stored credential is
-// rejected (401/403, a lapsed subscription) or can no longer be refreshed. Every remaining rung on
-// that provider would fail the same way, so runtime fallback moves on to another provider.
-const CREDENTIAL_FAILURE =
-  /\b(?:401|403)\b|unauthori[sz]ed|forbidden|invalid_grant|oauth refresh failed|subscription is required|invalid api key|incorrect api key|authentication (?:failed|error)/i
+// rejected (401, an invalid key, a lapsed subscription) or can no longer be refreshed. Every
+// remaining rung on that provider would fail the same way, so runtime fallback moves on to another
+// provider.
+const CREDENTIAL_REJECTED =
+  /\b401\b|unauthori[sz]ed|invalid_grant|oauth refresh failed|subscription is required|invalid api key|incorrect api key|authentication (?:failed|error)/i
+// A 403 is ambiguous: a provider also answers it for ONE model the key may not use (tier, region,
+// preview access), which a sibling model on the same provider does not share. Mirroring senpi's
+// credential-pool classifier, a 403 counts as a credential rejection only when its text names the
+// account, credential, key, organization or subscription.
+const FORBIDDEN = /\b403\b|forbidden/i
+const ACCOUNT_SCOPED_403 = /account|credential|token|api[ _-]?key|organization|subscription/i
 
 export function isCredentialFailure(message: string): boolean {
-  return CREDENTIAL_FAILURE.test(message)
+  if (CREDENTIAL_REJECTED.test(message)) return true
+  return FORBIDDEN.test(message) && ACCOUNT_SCOPED_403.test(message)
 }
 
 function providerOf(record: TaskRecord): string | undefined {
