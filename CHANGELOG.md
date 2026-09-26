@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**`deep-low` runs GPT-5.6 Sol Fast at medium.** ([#8885](https://github.com/code-yeongyu/oh-my-openagent/issues/8885)) The default deep delegation lane now starts on `gpt-5.6-sol-fast` (medium) on the ChatGPT subscription and OpenAI API lanes and falls back to `gpt-5.6-sol` (medium), which GitHub Copilot and OpenCode Zen also serve. The lane is offered whenever one of those two models is connected, so an account that only has GPT-6 Sol no longer sees it; pin `categories.deep-low.model` to keep a GPT-6 Sol setup.
+
 ## [5.0.0-beta.90] - 2026-09-24
 
 ### Changed
@@ -328,7 +332,6 @@ A selected row no longer earns a `border-l-2 border-primary` stripe, and a focus
 
 **A session that reattaches to another host generation keeps its memory.** Your memory identity was derived from the directory the host process happened to be started in, not from the session's own workspace. One shared host serves sessions from many projects, so a host ensured from somewhere else handed its own identity to every session that reattached to it: the session was told `memory identity conflict: session is bound to <workspace>-<hash>, but config resolved server-<hash>`, and its memory tools went away while the workspace had not moved at all. Identity now comes from the session's own working directory, and a reattach that still disagrees rebinds to the identity recorded in the session and notes it in the log instead of stopping. The error is kept for the case it was written for: you pointed `memory.agent` at a different identity yourself. ([#8556](https://github.com/code-yeongyu/oh-my-openagent/issues/8556))
 
-
 ## [5.0.0-beta.80] - 2026-09-20
 
 ### Changed
@@ -476,7 +479,6 @@ get it too instead of only a first spawn. ([#8492](https://github.com/code-yeong
 **Compaction summarization retries without the reasoning override after an empty stop.** (senpi [#1773](https://github.com/code-yeongyu/senpi/issues/1773))
 
 **RPC socket host: session-event credit on queue acceptance, 30 s dead-peer stall budget, observable cut notice.** (senpi [#1774](https://github.com/code-yeongyu/senpi/issues/1774))
-
 
 ### OmO
 
@@ -775,7 +777,6 @@ OmO Native stops greeting you with its entire history, and memory gains a reside
 ### Engine: senpi 2026.9.11
 
 The changelog selection fix above lives in the engine and ships with this release. Also included: a cold-start fix for the RPC host, a goal-contract correction so a harness goal advises the loop instead of gating it, and Windows fixes for thread-socket discovery and a DAG race.
-
 
 ## [5.0.0-beta.1] - 2026-08-09
 
