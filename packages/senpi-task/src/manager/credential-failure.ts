@@ -16,11 +16,14 @@ function providerOf(record: TaskRecord): string | undefined {
   return separator > 0 ? record.model.slice(0, separator) : undefined
 }
 
-/** The terminal error text: a credential failure names the provider and the command that restores it. */
+// The task manager has no session surface of its own (a desktop client, a headless run and the
+// terminal all delegate), so the recovery names both re-authentication paths instead of a slash
+// command only the interactive terminal handles.
+/** The terminal error text: a credential failure names the provider and how to restore it. */
 export function terminalFailureMessage(record: TaskRecord | null | undefined, failureMessage: string): string {
   const provider = record == null ? undefined : providerOf(record)
   if (provider === undefined || !isCredentialFailure(failureMessage)) return failureMessage
-  return `${failureMessage}\nCredentials for ${provider} were rejected; run /login ${provider} (or re-add its API key), or pin this category to another provider in omo.json.`
+  return `${failureMessage}\nCredentials for ${provider} were rejected; re-authenticate ${provider} (Provider authentication settings on the desktop, /login ${provider} in an interactive session) or re-add its API key, or pin this category to another provider in omo.json.`
 }
 
 export type RuntimeFallbackCandidates = {

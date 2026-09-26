@@ -7,14 +7,16 @@ rung on the failed provider for such a message. `manager/manager.ts` `#tryRuntim
 instead of `fallback_models[0]`, so a migrated OpenCode Go key whose subscription lapsed (403 on
 `minimax-m3`) no longer relaunches on `minimax-m2.7`: the next provider runs, or the task ends in error when
 none is left. `task_model_fallback` gains `skipped_models`. Any other failure keeps today's order. When the task ends on
-a credential failure, `manager-outcome.ts` records `terminalFailureMessage`: the provider error plus
-`run /login <provider>` (or re-add its key, or pin the category elsewhere). Scope: this is the manager's
+a credential failure, `manager-outcome.ts` records `terminalFailureMessage`: the provider error plus how to
+re-authenticate (`Provider authentication settings` on the desktop, `/login <provider>` in an interactive
+session - the manager has no session surface of its own, so both paths are named), re-add the key, or pin
+the category elsewhere. Scope: this is the manager's
 turn-level walk, which process children (`rpc-host`, `rpc`) use. An in-process child hands its chain to the
 engine as `retry.fallbackChains` (`runners/in-process/runtime-fallback-settings.ts`), and senpi's retry
 controller still retries same-provider rungs there; that belongs to the engine. A dead key is only visible
 at request time (a stored key resolves), so nothing here probes before the spawn. Tests:
 `auth-failure-fallback.test.ts` (non-credential failure keeps the same provider and its text, a 403 skips
-to zai, a rejected OAuth refresh with only same-provider rungs ends the task with the `/login` hint).
+to zai, a rejected OAuth refresh with only same-provider rungs ends the task with the re-authentication hint).
 
 ## Task-category coverage for omo doctor and omo setup (#8858)
 

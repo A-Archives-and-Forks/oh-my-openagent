@@ -99,6 +99,8 @@ describe("runtime fallback after a credential failure", () => {
     const ended = await terminal
     expect(ended.status).toBe("error")
     expect(ended.error_message).toStartWith(REFRESH_REJECTED)
+    expect(ended.error_message).toContain("re-authenticate anthropic")
+    expect(ended.error_message).toContain("Provider authentication settings")
     expect(ended.error_message).toContain("/login anthropic")
     expect(runner.startedSpecs.map((spec) => spec.model)).toEqual([OPUS.display])
     expect(store.load(task.task_id)?.status).toBe("error")
