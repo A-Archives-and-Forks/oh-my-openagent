@@ -37,7 +37,7 @@ function releaseChannel(version: string | undefined): "beta" | "latest" {
 
 export function renderLocalLauncher(options: LocalLauncherOptions): string {
   const channel = releaseChannel(options.version)
-  const updateCommand = channel === "beta" ? "npm i -g omo-ai@beta" : "npm i -g omo-ai"
+  const updateCommand = channel === "beta" ? "bun add -g omo-ai@beta" : "bun add -g omo-ai"
   const brand = {
     name: "OmO",
     command: "omo",
@@ -87,7 +87,7 @@ const selfUpdate = process.argv[2] === "update"
   && process.argv.slice(3).every((arg) => arg.startsWith("-") || ["self", "senpi", "omo"].includes(arg))
   && !process.argv.slice(3).some((arg) => arg === "--extensions" || arg === "--models")
 if (selfUpdate) {
-  console.log(${JSON.stringify(`omo is updated via npm: ${updateCommand}`)})
+  console.log(${JSON.stringify(`omo is updated via bun: ${updateCommand}`)})
   process.exit(0)
 }
 // windowsHide-exempt: this is the interactive foreground CLI, spawned with inherited stdio.
