@@ -33,8 +33,17 @@ describe("isCredentialFailure", () => {
     ["lapsed subscription (403 naming the subscription)", '403: {"message":"An active OpenCode Go subscription is required to use Go models."}'],
     ["403 naming the organization", "403: Your organization does not have access to this API"],
     ["403 naming the key", "403: This API key does not have permission to use the completions endpoint"],
+    ["403 naming a suspended account", "403 Forbidden: this account has been suspended"],
   ])("#given %s #when classified #then it is a credential failure", (_label, message) => {
     expect(isCredentialFailure(message)).toBe(true)
+  })
+
+  test.each([
+    ["an organization gate on one model", "403: Your organization must be verified to use this model"],
+    ["a valid key refused one model", "403: The API key is valid, but access to restricted-model is forbidden. Use an allowed model."],
+    ["an account gate naming the failed model id", "403: account tier does not include minimax-m3"],
+  ])("#given a 403 that names the account or key but scopes itself to a model (%s) #when classified #then it is not a credential failure", (_label, message) => {
+    expect(isCredentialFailure(message, "minimax-m3")).toBe(false)
   })
 
   test.each([
@@ -54,6 +63,16 @@ describe("runtimeFallbackCandidates", () => {
     const candidates = runtimeFallbackCandidates(record(GO_M3, [GO_M27, ZAI_GLM]), "403: This model is not enabled for your project.")
 
     expect(candidates).toEqual({ remaining: [GO_M27, ZAI_GLM], skipped: [] })
+  })
+
+  test.each([
+    ["403: Your organization must be verified to use this model"],
+    ["403: The API key is valid, but access to restricted-model is forbidden. Use an allowed model."],
+  ])("#given a model-scoped 403 that names the organization or key (%s) #when the candidates are computed #then the allowed sibling stays and no re-authentication is prescribed", (message) => {
+    const failed = record(GO_M3, [GO_M27, ZAI_GLM])
+
+    expect(runtimeFallbackCandidates(failed, message)).toEqual({ remaining: [GO_M27, ZAI_GLM], skipped: [] })
+    expect(terminalFailureMessage(record(GO_M3, []), message)).toBe(message)
   })
 
   test("#given a credential rejection on the first rung #when the candidates are computed #then every rung on that provider is skipped", () => {
