@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **A stable release ships OmO Native on `latest`, and a stable build stops asking for `@beta`.** ([#8887](https://github.com/code-yeongyu/oh-my-openagent/issues/8887)) The release pipeline now takes omo-ai's channel from the version it publishes: a prerelease still goes to `beta` as `X.Y.Z-0.<suffix>`, while a stable version goes to `latest` as exactly `X.Y.Z`, so `bun add -g omo-ai` installs it with no tag. The dist-tag guard and the live-install check follow the same channel. Every place that prints an install or update line (the update banner, `omo update`, `omo doctor`, the launcher's reinstall hints, the OpenCode installer and its in-session nudge, the post-install notice, and the release-notes footer) derives it from the running build's version.
 
+**OmO Native moves to senpi 2026.9.26.** ([#8882](https://github.com/code-yeongyu/oh-my-openagent/issues/8882), [senpi#2139](https://github.com/code-yeongyu/senpi/issues/2139), [senpi#2137](https://github.com/code-yeongyu/senpi/issues/2137), [senpi#2135](https://github.com/code-yeongyu/senpi/issues/2135), [senpi#2143](https://github.com/code-yeongyu/senpi/issues/2143)) The Cursor CLI lane now sends your request together with the hidden messages of the same turn, so the first request of a session no longer reaches the model as an empty plan reminder. The first-turn plan waits for your own first request instead of arming on an onboarding greeting. A handoff block that restates your request is no longer mistaken for a repeating turn, while a turn that really repeats is still stopped.
+
 ## [5.0.0-beta.90] - 2026-09-24
 
 ### Changed
