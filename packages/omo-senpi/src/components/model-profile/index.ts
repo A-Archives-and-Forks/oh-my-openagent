@@ -1,6 +1,7 @@
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig } from "../config-resolution"
 import { DEFAULT_MODEL_PROFILE_ID } from "./builtin-profiles"
+import { credentialRotationPolicy } from "./credential-policy"
 import { authFailedDetails, noticeContent } from "./notice"
 import { type AuthFailure, type ProbeRegistry, probeRequestAuth, probeRuntime, sanitizedAuthErrorDetail } from "./request-auth"
 import { resolveModelProfile, type ModelProfileResolution } from "./resolve"
@@ -42,6 +43,7 @@ type SessionModelApi = {
 type SessionRegistry = ProbeRegistry & {
   getAvailable(): readonly unknown[]
   find(provider: string, modelId: string): unknown
+  getProviderAuthStatus?(provider: string): unknown
 }
 
 // Mirrors senpi-task's `asSenpiThinkingLevel` (packages/senpi-task/src/senpi/thinking-level.ts),
@@ -85,6 +87,10 @@ function extractSessionId(eventCtx: unknown): string | undefined {
 
 function extractMode(eventCtx: unknown): string | undefined {
   return isRecord(eventCtx) && typeof eventCtx["mode"] === "string" ? eventCtx["mode"] : undefined
+}
+
+function extractAgentDir(eventCtx: unknown): string | undefined {
+  return isRecord(eventCtx) && typeof eventCtx["agentDir"] === "string" ? eventCtx["agentDir"] : undefined
 }
 
 // Only a fresh session may receive the profile: a resume/fork carries its own model history, a
@@ -150,6 +156,7 @@ type ProbedResolution = { readonly resolution: ModelProfileResolution; readonly 
 async function resolveWithRequestAuth(
   ctx: ComponentContext,
   registry: SessionRegistry,
+  agentDir: string | undefined,
   profiles: Parameters<typeof resolveModelProfile>[0]["profiles"],
   active: string,
 ): Promise<ProbedResolution> {
@@ -166,12 +173,13 @@ async function resolveWithRequestAuth(
       ),
     })
   const runtime = probeRuntime(registry)
+  const mayRotate = credentialRotationPolicy(registry, agentDir)
   let resolution = resolve()
   let model: unknown
   while (resolution.kind === "resolved") {
     model = registry.find(resolution.provider, resolution.modelId)
     if (model === undefined || resolution.profile.source === "pin" || runtime === undefined) break
-    const failure = await probeRequestAuth(registry, runtime, resolution.provider, resolution.modelId, model)
+    const failure = await probeRequestAuth(registry, runtime, mayRotate, resolution.provider, resolution.modelId, model)
     if (failure === undefined) break
     failures.push(failure)
     logSkippedCandidate(ctx, failure)
@@ -213,7 +221,13 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
         }
 
         const mode = extractMode(eventCtx)
-        const { resolution, model, failures } = await resolveWithRequestAuth(ctx, registry, config.model_profiles, active)
+        const { resolution, model, failures } = await resolveWithRequestAuth(
+          ctx,
+          registry,
+          extractAgentDir(eventCtx),
+          config.model_profiles,
+          active,
+        )
         const content = noticeContent(resolution, failures, mode)
 
         if (resolution.kind !== "resolved") {

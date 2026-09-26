@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { describe, expect, spyOn, test } from "bun:test"
-import { existsSync, mkdtempSync } from "node:fs"
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -35,23 +35,32 @@ const CODING_KIMI: FakeModel = { provider: "kimi-coding", id: "kimi-k3" }
 type FakeCredential = { readonly accounts?: readonly { readonly name: string }[]; readonly pinned?: string }
 type FakeGetAuth = (target: string | FakeModel, overrides?: { readonly slotName?: string }) => Promise<unknown>
 
-function registry(models: readonly FakeModel[], getAuth?: FakeGetAuth, credentials: Record<string, FakeCredential> = {}) {
+function registry(
+  models: readonly FakeModel[],
+  getAuth?: FakeGetAuth,
+  credentials: Record<string, FakeCredential> = {},
+  runtimeKeyProviders: readonly string[] = [],
+) {
   return {
     getAvailable: () => [...models],
     find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
     ...(getAuth === undefined ? {} : { modelRuntime: { getAuth } }),
     authStorage: { get: (provider: string) => credentials[provider] },
+    getProviderAuthStatus: (provider: string) =>
+      runtimeKeyProviders.includes(provider) ? { configured: true, source: "runtime" } : { configured: true, source: "stored" },
   }
 }
 
-// A value that must never reach a notice, a details object, or a default log line.
+// Values that must never reach a notice, a details object, or a log line: a long opaque marker and a
+// short credential in the formats providers actually echo (a bearer header, a JSON token field).
 const PRIVATE_MARKER = "SYNTHETIC_PRIVATE_MARKER_9f8e7d6c5b4a"
+const SHORT_SECRET = "sk-short-7q"
 
 // senpi maps a rejected refresh onto ModelsError code "oauth" whose message carries the exchange
-// detail (URL, response body).
+// detail (request headers, URL, response body).
 function refreshRejected(provider: string): Error {
   const error = new Error(
-    `OAuth refresh failed for ${provider}: Anthropic token refresh request failed. url=https://example.invalid/oauth/token; details=Error: body={"error":"invalid_grant","marker":"${PRIVATE_MARKER}"}`,
+    `OAuth refresh failed for ${provider}: Authorization: Bearer ${SHORT_SECRET} {"access_token":"${SHORT_SECRET}"} url=https://example.invalid/oauth/token?refresh_token=${SHORT_SECRET}; details=Error: body={"error":"invalid_grant","marker":"${PRIVATE_MARKER}"}`,
   )
   error.name = "ModelsError"
   return Object.assign(error, { code: "oauth" })
@@ -59,7 +68,7 @@ function refreshRejected(provider: string): Error {
 
 // A model header whose `!command` fails: senpi quotes the command in the message.
 function requestConfigurationFailed(model: FakeModel): Error {
-  return new Error(`Failed to resolve model "${model.provider}/${model.id}" header x-token from shell command: echo ${PRIVATE_MARKER}`)
+  return new Error(`Failed to resolve model "${model.provider}/${model.id}" header x-token from shell command: echo ${PRIVATE_MARKER} ${SHORT_SECRET}`)
 }
 
 type ProbeFailures = {
@@ -101,6 +110,7 @@ function harness(
   models: readonly FakeModel[] = [FABLE, OPUS, KIMI],
   auth?: FakeGetAuth,
   credentials?: Record<string, FakeCredential>,
+  runtimeKeyProviders?: readonly string[],
 ) {
   const pi = new FakeExtensionAPI()
   const logs: string[] = []
@@ -112,7 +122,7 @@ function harness(
     mode,
     cwd: "/project",
     agentDir,
-    modelRegistry: registry(models, auth, credentials),
+    modelRegistry: registry(models, auth, credentials, runtimeKeyProviders),
     sessionManager: { getSessionId: () => sessionId },
   })
   const start = (payload: Record<string, unknown>, sessionId?: string, mode?: string) =>
@@ -512,6 +522,51 @@ describe("createModelProfileComponent", () => {
     })
   })
 
+  test("#given a pool whose provider disables rotation in models.json #when the session starts #then only the flat credential is probed, as the engine would use it", async () => {
+    const probe = authProbe({ dead: ["anthropic"] })
+    const { pi, agentDir, start } = harness({}, [OPUS, GLM], probe.getAuth, {
+      anthropic: { accounts: [{ name: "expired" }, { name: "healthy" }] },
+    })
+    writeFileSync(join(agentDir, "models.json"), '{\n  // JSONC, as senpi reads it\n  "providers": { "anthropic": { "credentials": { "rotation": false } } }\n}\n')
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([GLM])
+    expect(probe.calls).toEqual(["anthropic", "zai", "zai/glm-5.3"])
+    expect(pi.messages[0]?.message["details"]).toMatchObject({
+      authFailed: [{ provider: "anthropic", model: "claude-opus-5-5", reason: "refresh" }],
+    })
+  })
+
+  test("#given rotation disabled for a different provider #when the session starts #then this provider's pool still rotates onto its healthy account", async () => {
+    const probe = authProbe({ deadSlots: ["anthropic@expired"] })
+    const { pi, agentDir, start } = harness({}, [OPUS, GLM], probe.getAuth, {
+      anthropic: { accounts: [{ name: "expired" }, { name: "healthy" }] },
+    })
+    writeFileSync(join(agentDir, "models.json"), JSON.stringify({ providers: { zai: { credentials: { rotation: false } } } }))
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([OPUS])
+    expect(probe.calls).toEqual(["anthropic@expired", "anthropic@healthy", "anthropic/claude-opus-5-5@healthy"])
+  })
+
+  test("#given a runtime API key set for a pooled provider #when the session starts #then rotation is off and only the flat credential is probed", async () => {
+    const probe = authProbe({ dead: ["anthropic"] })
+    const { pi, start } = harness(
+      {},
+      [OPUS, GLM],
+      probe.getAuth,
+      { anthropic: { accounts: [{ name: "expired" }, { name: "healthy" }] } },
+      ["anthropic"],
+    )
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([GLM])
+    expect(probe.calls).toEqual(["anthropic", "zai", "zai/glm-5.3"])
+  })
+
   test("#given a lane whose first rung resolves credentials #when the session starts #then it is applied after one provider and one model probe", async () => {
     const probe = authProbe()
     const { pi, start } = harness({ model_profile: "daily-heavy" }, [FABLE, OPUS, KIMI], probe.getAuth)
@@ -618,5 +673,6 @@ describe("model profile diagnostics through the composed default logger", () => 
     expect(lines.some((line) => line.includes("skipped anthropic/claude-opus-5-5: ModelsError"))).toBe(true)
     expect(lines.some((line) => line.includes("skipped zai/glm-5.3: Error") && line.includes("shell command: <redacted>"))).toBe(true)
     expect(lines.some((line) => line.includes(PRIVATE_MARKER))).toBe(false)
+    expect(lines.some((line) => line.includes(SHORT_SECRET))).toBe(false)
   })
 })

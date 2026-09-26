@@ -4,22 +4,29 @@
  * senpi resolves auth lazily, on the first request, and `modelRegistry.getAvailable()` lists every
  * provider with STORED credentials - including an OAuth login whose refresh token the provider now
  * rejects. The first turn goes through `ModelRuntime.streamSimple`, which (a) rotates over a
- * provider's credential SLOTS when it holds more than one account (a pinned account wins), and (b)
- * resolves the model's own configured headers on top of the provider credential. Both are
- * reproduced here through the public `ModelRuntime.getAuth` overloads so the walk skips exactly
- * what that turn could not use:
+ * provider's credential SLOTS when it holds more than one account and rotation is allowed (a
+ * pinned account wins; `credential-policy.ts` reads when rotation is off and only the flat
+ * credential counts), and (b) resolves the model's own configured headers on top of the provider
+ * credential. Both are reproduced here through the public `ModelRuntime.getAuth` overloads so the
+ * walk skips what that turn could not use:
  *
  *   - provider scope: no eligible slot resolves (`refresh`: the stored login could not be
  *     refreshed; `credentials`: any other resolution failure, e.g. a failing `!command` key);
  *   - model scope (`request`): the provider credential resolved but this model's request
  *     configuration did not, so only that candidate is skipped and its siblings stay eligible.
  *
+ * Limits: whether a rotating pool actually fails over on the first turn depends on how senpi's pool
+ * classifier reads the rejection (a 401/unauthorized/invalid-key answer fails over; a plain
+ * `invalid_grant` body does not), and a slot the pool sidecar has blocked still counts here.
+ *
  * Cost: each probe is the resolution the first turn would perform anyway (a token with less than
- * five minutes left is refreshed; a rejected refresh costs up to senpi's exchange timeout per
- * slot), and the walk is sequential. Raw errors carry URLs, response bodies and shell commands, so
- * only a class/code fingerprint leaves this module; `sanitizedAuthErrorDetail` is for opt-in
- * diagnostics.
+ * five minutes left is refreshed; a rejected refresh costs up to senpi's exchange timeout), once per
+ * attempted account, sequentially. Raw errors carry URLs, response bodies, tokens and shell
+ * commands, so only a class/code fingerprint leaves this module by default; `sanitizedAuthErrorDetail`
+ * is for opt-in diagnostics.
  */
+
+import type { CredentialRotationPolicy } from "./credential-policy"
 
 export type AuthFailureReason = "refresh" | "credentials" | "request"
 
@@ -91,14 +98,21 @@ function providerFailureReason(error: unknown): AuthFailureReason {
 export async function probeRequestAuth(
   registry: ProbeRegistry,
   runtime: ProbeRuntime,
+  mayRotate: CredentialRotationPolicy,
   provider: string,
   modelId: string,
   model: unknown,
 ): Promise<AuthFailure | undefined> {
   const slots = credentialSlots(registry, provider)
-  // Rotation order: a pin is the only slot the engine uses; otherwise any healthy slot serves.
-  const candidates: (string | undefined)[] =
-    slots.pinned !== undefined ? [slots.pinned] : slots.names.length > 0 ? [...slots.names] : [undefined]
+  // The engine's selection: without rotation only the flat credential is used; with it, a pin is
+  // the only slot, otherwise any resolving slot serves.
+  const candidates: (string | undefined)[] = !mayRotate(provider)
+    ? [undefined]
+    : slots.pinned !== undefined
+      ? [slots.pinned]
+      : slots.names.length > 0
+        ? [...slots.names]
+        : [undefined]
 
   let resolvedSlot: string | undefined
   let resolved = false
@@ -129,17 +143,30 @@ export async function probeRequestAuth(
 
 const DETAIL_MAX_LENGTH = 240
 
+// Any field whose NAME says it carries a secret, in `name: value`, `name=value` or JSON `"name": "value"`
+// form; the whole value is dropped, whatever its length.
+const SECRET_FIELD =
+  /(["']?)\b([\w-]*(?:token|secret|password|passwd|authorization|api[_-]?key|apikey|access[_-]?key|refresh|credential|cookie|session)[\w-]*)\1(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}&]+(?:\s+[^\s,;}&]+)?)/gi
+
 // One redacted line per error in the cause chain. Shell commands and response bodies are dropped
-// whole (a `!command` key or header can embed a secret), key/token-shaped assignments and long
-// opaque strings are masked, and stacks never appear.
+// whole (a `!command` key or header can embed a secret), secret-named fields lose their value
+// (including a two-word `Authorization: Bearer <token>`), bearer/basic schemes lose their
+// credential, URL userinfo and query strings are dropped, remaining long opaque strings are masked,
+// and stacks never appear.
 function sanitizedLine(error: unknown): string {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-  return message
+  const name = error instanceof Error ? `${error.name}: ` : ""
+  const message = error instanceof Error ? error.message : String(error)
+  // The class name is kept verbatim (it can itself read like a secret-named field, for example
+  // `OAuthRefreshExchangeError:`); only the message is redacted.
+  return (name + message
     .split("\n")[0]!
     .replace(/shell command:.*$/i, "shell command: <redacted>")
-    .replace(/\b(body|stack)=.*$/i, "$1=<redacted>")
-    .replace(/\b(bearer|token|key|secret|password|authorization)([=:]\s*)\S+/gi, "$1$2<redacted>")
-    .replace(/[A-Za-z0-9_-]{32,}/g, "<redacted>")
+    .replace(/\b(body|stack|details)=.*$/i, "$1=<redacted>")
+    .replace(SECRET_FIELD, "$1$2$1$3<redacted>")
+    .replace(/\b(bearer|basic)\s+[^\s,;"']+/gi, "$1 <redacted>")
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s@]*@/gi, "$1<redacted>@")
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#]*)[?#][^\s]*/gi, "$1?<redacted>")
+    .replace(/[A-Za-z0-9_+/=-]{24,}/g, "<redacted>"))
     .slice(0, DETAIL_MAX_LENGTH)
 }
 
