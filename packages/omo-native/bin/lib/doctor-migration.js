@@ -2,6 +2,7 @@ import { closeSync, lstatSync, openSync, readFileSync, readSync, realpathSync, s
 import { homedir } from "node:os"
 import { delimiter, dirname, isAbsolute, join, win32 } from "node:path"
 import { parseJsonc } from "./jsonc.js"
+import { releaseChannel } from "./package-paths.js"
 import { opencodeConfigSources } from "./setup-opencode-assets.js"
 
 // Migration leftovers from the OpenCode edition, reported and never touched: another `omo` ahead of
@@ -13,7 +14,8 @@ const NATIVE_PACKAGE = "omo-ai"
 const LEGACY_PACKAGES = ["oh-my-openagent", "oh-my-opencode"]
 // The native installer repairs an `omo` owned by any of these, so the fix it names works for them.
 const REPAIRABLE_BIN_OWNERS = [...LEGACY_PACKAGES, "lazycodex"]
-const REPAIR_COMMAND = "bunx oh-my-openagent@beta install --platform=native"
+// The installer that repairs it is published on the same channel as this build.
+const REPAIR_COMMAND = `bunx ${releaseChannel() === "beta" ? "oh-my-openagent@beta" : "oh-my-openagent"} install --platform=native`
 
 const CODEX_LIGHT_WRAPPER_MARKER = "# OMO_GENERATED_RUNTIME_WRAPPER"
 const CODEX_LIGHT_CACHE_VERSION = /[\\/]plugins[\\/]cache[\\/]sisyphuslabs[\\/]omo[\\/]([^\\/"'\s]+)[\\/]/
