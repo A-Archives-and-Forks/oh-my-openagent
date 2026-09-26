@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**A stable release ships OmO Native on `latest`, and a stable build stops asking for `@beta`.** ([#8887](https://github.com/code-yeongyu/oh-my-openagent/issues/8887)) The release pipeline now takes omo-ai's channel from the version it publishes: a prerelease still goes to `beta` as `X.Y.Z-0.<suffix>`, while a stable version goes to `latest` as exactly `X.Y.Z`, so `bun add -g omo-ai` installs it with no tag. The dist-tag guard and the live-install check follow the same channel. Every place that prints an install or update line (the update banner, `omo update`, `omo doctor`, the launcher's reinstall hints, the OpenCode installer and its in-session nudge, the post-install notice, and the release-notes footer) derives it from the running build's version.
+
 ## [5.0.0-beta.90] - 2026-09-24
 
 ### Changed
@@ -328,7 +332,6 @@ A selected row no longer earns a `border-l-2 border-primary` stripe, and a focus
 
 **A session that reattaches to another host generation keeps its memory.** Your memory identity was derived from the directory the host process happened to be started in, not from the session's own workspace. One shared host serves sessions from many projects, so a host ensured from somewhere else handed its own identity to every session that reattached to it: the session was told `memory identity conflict: session is bound to <workspace>-<hash>, but config resolved server-<hash>`, and its memory tools went away while the workspace had not moved at all. Identity now comes from the session's own working directory, and a reattach that still disagrees rebinds to the identity recorded in the session and notes it in the log instead of stopping. The error is kept for the case it was written for: you pointed `memory.agent` at a different identity yourself. ([#8556](https://github.com/code-yeongyu/oh-my-openagent/issues/8556))
 
-
 ## [5.0.0-beta.80] - 2026-09-20
 
 ### Changed
@@ -476,7 +479,6 @@ get it too instead of only a first spawn. ([#8492](https://github.com/code-yeong
 **Compaction summarization retries without the reasoning override after an empty stop.** (senpi [#1773](https://github.com/code-yeongyu/senpi/issues/1773))
 
 **RPC socket host: session-event credit on queue acceptance, 30 s dead-peer stall budget, observable cut notice.** (senpi [#1774](https://github.com/code-yeongyu/senpi/issues/1774))
-
 
 ### OmO
 
@@ -775,7 +777,6 @@ OmO Native stops greeting you with its entire history, and memory gains a reside
 ### Engine: senpi 2026.9.11
 
 The changelog selection fix above lives in the engine and ships with this release. Also included: a cold-start fix for the RPC host, a goal-contract correction so a harness goal advises the loop instead of gating it, and Windows fixes for thread-socket discovery and a DAG race.
-
 
 ## [5.0.0-beta.1] - 2026-08-09
 
