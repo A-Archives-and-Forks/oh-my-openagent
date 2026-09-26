@@ -1,20 +1,47 @@
-## model profiles: a rung whose provider's request auth does not resolve is skipped
+## model profiles: a rung the first turn could not use is skipped
 
 `components/model-profile/index.ts`: the rung walk matched against `modelRegistry.getAvailable()`,
 which lists every provider with STORED credentials. An Anthropic OAuth login whose refresh token the
 provider rejects (`invalid_grant`) stayed listed, so an unset `model_profile` (Recommended, #8770)
 pinned `anthropic/claude-opus-5-5` on every headless and desktop start; the first turn failed on the
 refresh and senpi's `retry.fallbackChains` walked only opus-5, opus-4-8 and opus-4-6 before exiting,
-never reaching a connected `zai/glm-5.3`. After a profile (not a literal pin) resolves, the component
-now calls `modelRegistry.getApiKeyAndHeaders(model)` - the resolution the first turn performs, which
-refreshes an expired OAuth token - and on `{ ok: false }` drops every `<provider>/*` selector and
-resolves again, one pass per failed provider. The applied and unavailable notices name the failed
-providers with `/login <provider>`; `details.authFailed` carries `{ provider, model }`, and the raw
-refresh error goes to the logger only. Hosts without `getApiKeyAndHeaders` keep the plain walk; a
-literal `provider/model` pin is applied unprobed. Out of scope: senpi's retry chain still retries
-same-provider models after an auth failure mid-session. Tests: `index.test.ts` stale Anthropic login ->
-GLM applied, every ladder provider failing -> unavailable with the login hint, a verified first rung
-probed once, a failing pin still applied.
+never reaching a connected `zai/glm-5.3`. New `request-auth.ts` reproduces the first turn's
+resolution through senpi's public `ModelRuntime.getAuth` (`modelRegistry.modelRuntime`) in two stages:
+the provider credential, per account when `modelRegistry.authStorage.get(provider).accounts` holds a
+pool (a `pinned` account is the only candidate, otherwise any resolving account keeps the provider,
+matching the engine's rotation), then the model itself, which adds the model's configured headers.
+A provider-scope failure (`refresh`: senpi's `ModelsError` code `oauth`; `credentials`: any other
+throw) drops every `<provider>/*` selector, a model-scope failure (`request`) drops only that
+selector, and the walk resolves again - bounded by the number of available selectors. The plain
+`getApiKeyAndHeaders` probe is gone: it resolves only the flat credential (a rejected default account
+hid a healthy sibling) and folds a model-local header failure into a provider-wide one. New
+`notice.ts` writes the applied/unavailable text: `skipped <provider>: its login could not be
+refreshed ... (if it has expired, re-authenticate <provider> in Provider authentication settings)` on
+the desktop (`mode === "rpc"`), `... in an interactive session with /login <provider>` elsewhere
+(the slash command exists only in the terminal), `... its credentials did not resolve ... (check that
+provider's credential configuration)`, `skipped <provider>/<model>: its request configuration did not
+resolve (check that model's headers in models.json)`. `details.authFailed` is exactly
+`{ provider, model, reason }[]`. The default log line carries the candidate, the reason and the
+error class/code only (`ModelsError/oauth`), because the composed logger writes warnings to stderr
+without `OMO_DEBUG` and the raw message quotes shell commands and response bodies;
+`sanitizedAuthErrorDetail` (first line per cause, shell commands / bodies / stacks / key-shaped
+assignments / long opaque strings redacted, 240 chars) is logged at info level only under
+`OMO_DEBUG`. Hosts whose registry exposes no `modelRuntime` keep the plain walk; a literal
+`provider/model` pin is applied unprobed. Cost: one resolution per skipped candidate at start (a
+rejected refresh waits for senpi's exchange timeout), sequential. Out of scope: senpi's retry chain
+still retries same-provider models after an auth failure mid-session, and senpi's own
+`recommended-models` builtin still treats a stored credential as connected. Tests: `index.test.ts`
+(desktop vs headless guidance, two rejected providers then a healthy one, exhaustion across
+providers with the exact details shape, a model-local failure keeping the sibling, a pool with a
+healthy sibling, a pinned dead account, one probe pair on a healthy first rung, an unprobed pin, a
+host without a runtime, and the composed default logger with a private marker with and without
+`OMO_DEBUG`); `request-auth.test.ts` runs the same walk against senpi's real `ModelRegistry`
+(`AuthStorage.inMemory` pool with a rejecting fixture OAuth lane, a pinned rejected account, a
+provider whose one model header cannot resolve) plus the sanitizer; `scripts/qa/model-profile-e2e.mjs`
+gains `unset-rejected-login-falls-back` and `unset-pooled-login-sibling-account` (`authJson` seeds
+the sandbox `auth.json`, `oauthProviders` gives the fixture lane an offline OAuth block whose exchange
+refuses `rejected-refresh`) checking the assistant turn's provider, `authFailed`, no `invalid_grant`
+in notices or stderr, and unchanged settings.
 
 ## ultrawork: the directive reports at handoffs instead of state changes only (#8847)
 
