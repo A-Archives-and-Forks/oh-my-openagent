@@ -14,6 +14,10 @@ import { resolveModelProfile, type ModelProfileResolution, type ModelProfileSumm
  * `defaultProvider`/`defaultModel` on the same event, so those keys mean "last used", not "pinned".
  * The pin lives in `model_profile` itself as a literal `provider/model`.
  *
+ * A rung counts only when its provider's request auth resolves: stored credentials that no longer
+ * refresh would otherwise pin a model whose first turn cannot start, so that provider is dropped and
+ * the walk continues.
+ *
  * In-tier fallback is start-time only. Mid-session failures follow senpi's `retry.fallbackChains`
  * (keyed by model family); wiring those to the tier is a named follow-up, and the applied notice
  * says so.
@@ -37,7 +41,10 @@ type SessionModelApi = {
 type SessionRegistry = {
   getAvailable(): readonly unknown[]
   find(provider: string, modelId: string): unknown
+  getApiKeyAndHeaders?(model: unknown): Promise<unknown>
 }
+
+type AuthFailure = { readonly provider: string; readonly model: string; readonly error: string }
 
 // Mirrors senpi-task's `asSenpiThinkingLevel` (packages/senpi-task/src/senpi/thinking-level.ts),
 // which that package does not export publicly: omo.json spells the disabled level "none" where
@@ -115,19 +122,50 @@ function availableSelectors(registry: SessionRegistry): string[] {
   return selectors
 }
 
+function providerOf(selector: string): string {
+  return selector.slice(0, selector.indexOf("/"))
+}
+
+// senpi resolves request auth lazily, at the first turn, and `getAvailable()` lists every provider
+// with STORED credentials - including an OAuth login whose refresh token the provider now rejects.
+// This is the same resolution the first turn performs (an expired OAuth token is refreshed here), so
+// a failure now is the failure that turn would hit. A host without the method keeps the plain walk.
+async function requestAuthError(registry: SessionRegistry, model: unknown): Promise<string | undefined> {
+  if (typeof registry.getApiKeyAndHeaders !== "function") return undefined
+  const result = await registry.getApiKeyAndHeaders(model)
+  if (!isRecord(result) || result["ok"] !== false) return undefined
+  return typeof result["error"] === "string" ? result["error"] : "request auth did not resolve"
+}
+
+// The raw refresh error can carry a URL and a stack, so the user-facing note names only the
+// providers and the command that repairs them; the logger keeps the full error.
+function authFailureNote(failures: readonly AuthFailure[]): string {
+  const providers = [...new Set(failures.map((failure) => failure.provider))]
+  const logins = providers.map((provider) => `/login ${provider}`).join(" or ")
+  return `credentials for ${providers.join(", ")} did not resolve (run ${logins})`
+}
+
+function authFailedDetails(failures: readonly AuthFailure[]): { authFailed?: { provider: string; model: string }[] } {
+  return failures.length === 0 ? {} : { authFailed: failures.map(({ provider, model }) => ({ provider, model })) }
+}
+
 function profileLabel(profile: ModelProfileSummary): string {
   return profile.displayName !== profile.id ? `"${profile.id}" (${profile.displayName})` : `"${profile.id}"`
 }
 
-function noticeContent(resolution: ModelProfileResolution): string {
+function noticeContent(resolution: ModelProfileResolution, authFailures: readonly AuthFailure[]): string {
   switch (resolution.kind) {
     case "resolved": {
       const model = `${resolution.provider}/${resolution.modelId}`
       const reasoning = resolution.reasoning !== undefined ? ` ${resolution.reasoning}` : ""
       const skipped = resolution.skipped.length > 0 ? ` (skipped: ${resolution.skipped.join(", ")})` : ""
-      return `OmO Native: model profile ${profileLabel(resolution.profile)} selected ${model}${reasoning}${skipped}; ${MID_SESSION_NOTE}`
+      const auth = authFailures.length > 0 ? `; ${authFailureNote(authFailures)}` : ""
+      return `OmO Native: model profile ${profileLabel(resolution.profile)} selected ${model}${reasoning}${skipped}${auth}; ${MID_SESSION_NOTE}`
     }
     case "unavailable":
+      if (authFailures.length > 0) {
+        return `OmO Native: model profile ${profileLabel(resolution.profile)} has no model with working credentials; ${authFailureNote(authFailures)}; keeping senpi's default model`
+      }
       return `OmO Native: model profile ${profileLabel(resolution.profile)} has no available model; none of the chain is in this session's model registry (${resolution.chain.join(", ")}); keeping senpi's default model`
     case "empty":
       return `OmO Native: model profile ${profileLabel(resolution.profile)} defines no models; keeping senpi's default model`
@@ -166,21 +204,44 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
           return
         }
 
-        const resolution = resolveModelProfile({
-          profiles: config.model_profiles,
-          active,
-          availableModels: availableSelectors(registry),
-        })
-        const content = noticeContent(resolution)
+        const available = availableSelectors(registry)
+        const authFailures: AuthFailure[] = []
+        const resolve = () =>
+          resolveModelProfile({
+            profiles: config.model_profiles,
+            active,
+            availableModels: available.filter(
+              (selector) => !authFailures.some((failure) => failure.provider === providerOf(selector)),
+            ),
+          })
+        let resolution = resolve()
+        let model: unknown
+        // Each failed probe removes one provider, so the walk ends after at most one pass per provider.
+        // A literal pin is the user's explicit choice and is never swapped, so it is not probed.
+        while (resolution.kind === "resolved") {
+          model = registry.find(resolution.provider, resolution.modelId)
+          if (model === undefined || resolution.profile.source === "pin") break
+          const error = await requestAuthError(registry, model)
+          if (error === undefined) break
+          authFailures.push({ provider: resolution.provider, model: resolution.modelId, error })
+          ctx.logger.warn(
+            `omo-senpi: model profile skipped ${resolution.provider}/${resolution.modelId}: request auth did not resolve: ${error}`,
+          )
+          resolution = resolve()
+        }
+        const content = noticeContent(resolution, authFailures)
 
         if (resolution.kind !== "resolved") {
           const customType = resolution.kind === "unknown" ? MODEL_PROFILE_UNKNOWN_TYPE : MODEL_PROFILE_UNAVAILABLE_TYPE
-          pi.sendMessage({ customType, content, display: true })
+          const details =
+            resolution.kind === "unavailable" && authFailures.length > 0
+              ? { details: { profile: resolution.profile.id, ...authFailedDetails(authFailures) } }
+              : {}
+          pi.sendMessage({ customType, content, display: true, ...details })
           ctx.logger.warn(content)
           return
         }
 
-        const model = registry.find(resolution.provider, resolution.modelId)
         if (model === undefined) {
           const message = `OmO Native: model profile "${resolution.profile.id}" resolved ${resolution.provider}/${resolution.modelId} but the registry no longer lists it`
           pi.sendMessage({ customType: MODEL_PROFILE_UNAVAILABLE_TYPE, content: message, display: true })
@@ -200,6 +261,7 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
             model: selectedModel,
             skipped: [...resolution.skipped],
             ...(resolution.reasoning !== undefined ? { reasoning: resolution.reasoning } : {}),
+            ...authFailedDetails(authFailures),
           },
         })
         ctx.logger.info(content, { profile: resolution.profile.id, model: selectedModel })

@@ -31,11 +31,27 @@ const SUBSCRIPTION_OPUS: FakeModel = { provider: "anthropic-subscription", id: "
 const GATEWAY_OPUS: FakeModel = { provider: "opengateway", id: "anthropic/claude-opus-5-5" }
 const CODING_KIMI: FakeModel = { provider: "kimi-coding", id: "kimi-k3" }
 
-function registry(models: readonly FakeModel[]) {
+type FakeAuth = (model: FakeModel) => Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }>
+
+function registry(models: readonly FakeModel[], auth?: FakeAuth) {
   return {
     getAvailable: () => [...models],
     find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
+    ...(auth === undefined ? {} : { getApiKeyAndHeaders: auth }),
   }
+}
+
+const REFRESH_REJECTED = "Anthropic token refresh request failed. body={\"error\": \"invalid_grant\"}"
+
+// Request auth as senpi's ModelRegistry reports it: providers listed in `dead` hold stored
+// credentials that no longer resolve. Every probed model is recorded in `calls`.
+function authProbe(dead: readonly string[]) {
+  const calls: string[] = []
+  const auth: FakeAuth = async (model) => {
+    calls.push(`${model.provider}/${model.id}`)
+    return dead.includes(model.provider) ? { ok: false, error: REFRESH_REJECTED } : { ok: true }
+  }
+  return { auth, calls }
 }
 
 function context(logs: string[]): ComponentContext {
@@ -45,7 +61,7 @@ function context(logs: string[]): ComponentContext {
   }
 }
 
-function harness(config: OmoConfig, models: readonly FakeModel[] = [FABLE, OPUS, KIMI]) {
+function harness(config: OmoConfig, models: readonly FakeModel[] = [FABLE, OPUS, KIMI], auth?: FakeAuth) {
   const pi = new FakeExtensionAPI()
   const logs: string[] = []
   const agentDir = mkdtempSync(join(tmpdir(), "omo-model-profile-"))
@@ -56,7 +72,7 @@ function harness(config: OmoConfig, models: readonly FakeModel[] = [FABLE, OPUS,
     mode,
     cwd: "/project",
     agentDir,
-    modelRegistry: registry(models),
+    modelRegistry: registry(models, auth),
     sessionManager: { getSessionId: () => sessionId },
   })
   const start = (payload: Record<string, unknown>, sessionId?: string, mode?: string) =>
@@ -332,6 +348,69 @@ describe("createModelProfileComponent", () => {
     await start({ reason: "new", initialModelProvenance: "settings" }, "session-2")
 
     expect(pi.sessionModels).toEqual([OPUS, OPUS])
+  })
+
+  test("#given unset and a stored Anthropic login whose refresh is rejected #when the session starts #then the next ladder rung with working credentials is applied", async () => {
+    const probe = authProbe(["anthropic"])
+    const { pi, logs, start } = harness({}, [OPUS, FABLE, GLM], probe.auth)
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([GLM])
+    expect(pi.sessionThinkingLevels).toEqual(["max"])
+    expect(probe.calls).toEqual(["anthropic/claude-opus-5-5", "zai/glm-5.3"])
+    expect(pi.messages).toHaveLength(1)
+    expect(pi.messages[0]?.message).toMatchObject({
+      customType: MODEL_PROFILE_APPLIED_TYPE,
+      details: {
+        profile: "recommended",
+        model: "zai/glm-5.3",
+        authFailed: [{ provider: "anthropic", model: "claude-opus-5-5" }],
+      },
+    })
+    expect(appliedContent(pi)).toContain("/login anthropic")
+    expect(appliedContent(pi)).not.toContain("invalid_grant")
+    expect(logs.some((line) => line.startsWith("warn:") && line.includes("invalid_grant"))).toBe(true)
+  })
+
+  test("#given unset and every ladder provider fails to resolve credentials #when the session starts #then no model is applied and the notice asks for a login", async () => {
+    const probe = authProbe(["anthropic"])
+    const { pi, start } = harness({}, [OPUS, FABLE], probe.auth)
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([])
+    expect(pi.sessionThinkingLevels).toEqual([])
+    expect(probe.calls).toEqual(["anthropic/claude-opus-5-5"])
+    expect(pi.messages).toHaveLength(1)
+    expect(pi.messages[0]?.message).toMatchObject({
+      customType: MODEL_PROFILE_UNAVAILABLE_TYPE,
+      details: { profile: "recommended", authFailed: [{ provider: "anthropic", model: "claude-opus-5-5" }] },
+    })
+    expect(appliedContent(pi)).toContain("/login anthropic")
+    expect(appliedContent(pi)).toContain("keeping senpi's default model")
+  })
+
+  test("#given a lane whose first rung resolves credentials #when the session starts #then it is applied after one probe", async () => {
+    const probe = authProbe([])
+    const { pi, start } = harness({ model_profile: "daily-heavy" }, [FABLE, OPUS, KIMI], probe.auth)
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([FABLE])
+    expect(probe.calls).toEqual(["anthropic/claude-fable-5-1"])
+    expect(pi.messages[0]?.message).toMatchObject({ customType: MODEL_PROFILE_APPLIED_TYPE })
+    expect(pi.messages[0]?.message["details"]).not.toHaveProperty("authFailed")
+  })
+
+  test("#given a literal provider/model pin with failing credentials #when the session starts #then the pin is applied unprobed", async () => {
+    const probe = authProbe(["anthropic"])
+    const { pi, start } = harness({ model_profile: "anthropic/claude-opus-5-5" }, [OPUS, GLM], probe.auth)
+
+    await start(STARTUP)
+
+    expect(pi.sessionModels).toEqual([OPUS])
+    expect(probe.calls).toEqual([])
   })
 
   test("#given GLM-only registry and unset profile #when the session starts #then glm max is applied", async () => {
